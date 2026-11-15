@@ -1,0 +1,16 @@
+{
+  "commit": "a2da29bef26e8d50a042d9f71ed6d3bd88ef6058",
+  "files": [
+    "auth-server.json",
+    "resource-server.json",
+    "wallet-address-server.json"
+  ],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/interledger/open-payments-specifications",
+  "sha256": {
+    "auth-server.json": "d2ae2401118fa8cbd701f99fa13bc7e4e50a34fce5dfc67e1384c7c19fbee4aa",
+    "resource-server.json": "368902368da38539ba616e39f9b66c577419f9fbc8ac51f217be9b068b49a3a3",
+    "wallet-address-server.json": "4bdce04df746f5156a7210dcf9e2aa332165ac887e06902d65bf38404a369239"
+  },
+  "version": "1.5.0"
+}
