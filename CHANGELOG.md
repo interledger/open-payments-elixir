@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare SHA-512 content digests and byte-accurate JSON content headers from the
+  exact encoded request body, with RFC and independent Node crypto test vectors.
 - Add private Ed25519 JWK import with canonical key-byte validation, public/private
   consistency checks, signing metadata constraints, and Node interoperability tests.
 - Add file and base64 PEM key imports with shared key validation, read-only file

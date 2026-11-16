@@ -207,7 +207,20 @@ The current operation inventory is available through
 
 HTTP signature framing uses `message_signatures`, with Ed25519 provided by OTP
 crypto. A contract test reproduces the published RFC 9421 Appendix B.2.6 signature.
-The Open Payments request-signing profile and HTTP pipeline are still being built.
+Content-header preparation uses SHA-512 and byte lengths from the exact encoded
+request body, following [RFC 9530](https://www.rfc-editor.org/rfc/rfc9530.html#section-2).
+An absent body produces no content headers; an explicit empty binary produces a
+zero-length body with its digest. Protocol payload validation and JSON encoding
+belong before this byte-level preparation.
+
+One deliberate difference from the Node SDK's content-header helper: the Elixir
+helper hashes the supplied bytes directly, preserving whitespace, property order,
+and Unicode spelling. Node's helper parses and re-serializes JSON before hashing.
+The future transport must send the same bytes used for the digest and signature.
+
+This is an internal signing building block. Open Payments `Signature` and
+`Signature-Input` generation, profile interoperability, and the HTTP pipeline are
+still being built.
 
 ## License
 
