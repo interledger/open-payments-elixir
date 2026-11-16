@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed public JWK and JWKS models with schema validation, indexed errors,
+  JSON conversion, metadata preservation, and private-key export protection.
 - Add payment-pointer-to-URL conversion with standard well-known-path resolution
   and validation of the restricted pointer syntax.
 - Add the typed wallet-address model with URI-format validation, optional public-name

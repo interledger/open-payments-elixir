@@ -86,6 +86,36 @@ This helper implements [payment-pointer syntax and resolution](https://paymentpo
 without making requests. Discovery must still check whether the resulting endpoint
 supports Open Payments. Wallet response fields remain unchanged by this helper.
 
+## Public keys
+
+Decode a wallet's public key set into nested structs:
+
+```elixir
+{:ok, key_set} =
+  OpenPayments.Types.JWKS.from_map(%{
+    "keys" => [%{
+      "kid" => "key-1",
+      "alg" => "EdDSA",
+      "kty" => "OKP",
+      "crv" => "Ed25519",
+      "x" => "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+    }]
+  })
+
+[%OpenPayments.Types.JWK{kid: "key-1"}] = key_set.keys
+```
+
+`JWK.from_map/1` also decodes individual keys. Both types provide `validate/1`,
+`to_map/1`, and Jason encoding. Nested errors identify the key and field, for
+example `keys[0].x`. Additional metadata is preserved within keys; the shared
+schema forbids additional fields on the set itself.
+
+These public-key types require the schema's `EdDSA`, `OKP`, and `Ed25519` values.
+The optional `use` field must be `sig` when present. Unlike the shared schema's
+unrestricted additional JWK properties, these public types reject private `d`
+material and exclude it from public export. Cryptographic validation of decoded
+key bytes and key selection will be provided by the signing utilities.
+
 ## Development
 
 ```sh
