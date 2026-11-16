@@ -3,8 +3,10 @@ defmodule OpenPayments.Key do
   An Ed25519 signing key with an explicit key ID.
 
   `generate/1` creates a new key using OTP crypto. `from_seed/2` imports an exact
-  32-byte Ed25519 seed and derives its public key. Key IDs must be nonblank strings;
-  their spelling is preserved, matching the Node SDK's public-key generator.
+  32-byte Ed25519 seed and derives its public key. `from_pem/2` imports a single
+  unencrypted Ed25519 PKCS#8 private-key entry using OTP's PEM parser.
+  Key IDs must be nonblank strings; their spelling is preserved, matching the
+  Node SDK's public-key generator.
 
   Use `public_jwk/1` or `public_jwks/1` to export public data for registration with
   a wallet address server. These functions never include the private seed.
@@ -20,6 +22,8 @@ defmodule OpenPayments.Key do
   @derive {Inspect, only: [:key_id]}
   @enforce_keys [:key_id, :public_key, :private_key]
   defstruct [:key_id, :public_key, :private_key]
+
+  @ed25519_oid {1, 3, 101, 112}
 
   @opaque t :: %__MODULE__{
             key_id: String.t(),
@@ -50,6 +54,27 @@ defmodule OpenPayments.Key do
     end
   end
 
+  @doc """
+  Imports a single unencrypted Ed25519 PKCS#8 private-key entry.
+
+  Public-only keys, other algorithms, encrypted keys, malformed data, and bundles
+  with multiple PEM entries return configuration errors. No password is accepted
+  and invalid input never causes a replacement key to be generated.
+  """
+  @spec from_pem(binary(), String.t()) :: {:ok, t()} | {:error, Error.t()}
+  def from_pem(pem, key_id) do
+    case decode_pem(pem) do
+      {:ok, seed} ->
+        from_seed(seed, key_id)
+
+      :error ->
+        invalid(
+          key_id_errors(key_id) ++
+            [issue(:pem, "must contain one unencrypted Ed25519 PKCS#8 private-key entry")]
+        )
+    end
+  end
+
   @doc "Exports the public key as a typed Open Payments JWK."
   @spec public_jwk(t()) :: JWK.t()
   def public_jwk(%__MODULE__{} = key) do
@@ -65,6 +90,23 @@ defmodule OpenPayments.Key do
   @doc "Exports the public key in a typed Open Payments JWKS document."
   @spec public_jwks(t()) :: JWKS.t()
   def public_jwks(%__MODULE__{} = key), do: %JWKS{keys: [public_jwk(key)]}
+
+  defp decode_pem(pem) when is_binary(pem) do
+    with [{:PrivateKeyInfo, _der, :not_encrypted} = entry] <- :public_key.pem_decode(pem),
+         {:ECPrivateKey, _version, seed, {:namedCurve, curve}, _public, _attributes}
+         when curve in [@ed25519_oid, :ed25519] <- :public_key.pem_entry_decode(entry),
+         true <- is_binary(seed) and byte_size(seed) == 32 do
+      {:ok, seed}
+    else
+      _other -> :error
+    end
+  rescue
+    _error -> :error
+  catch
+    :throw, _reason -> :error
+  end
+
+  defp decode_pem(_pem), do: :error
 
   defp derive_key(seed, key_id) do
     {public, private} = :crypto.generate_key(:eddsa, :ed25519, seed)

@@ -127,13 +127,20 @@ public_key_set = OpenPayments.Key.public_jwks(key)
 ```
 
 `OpenPayments.Key.from_seed(seed, key_id)` imports an existing raw 32-byte Ed25519
-seed, preserving its identity. Key IDs must be nonblank strings. Invalid inputs
-return configuration errors without retaining rejected values.
+seed, preserving its identity. `OpenPayments.Key.from_pem(pem, key_id)` imports
+an unencrypted Ed25519 PKCS#8 private key, such as one exported by Node's crypto
+library. It requires a single PEM entry and rejects encrypted keys, public-only
+keys, other algorithms, and malformed inputs. It never generates a replacement
+when an import fails.
+
+Key IDs must be nonblank strings. Invalid inputs return configuration errors
+without retaining rejected values.
 
 `public_jwk/1` and `public_jwks/1` return the typed public models described above,
 without private material. Key structs hide key material during inspection and have
-no JSON encoder; the seed remains in process memory. PEM and file imports and the
-Open Payments request-signing pipeline are still being implemented.
+no JSON encoder; the seed remains in process memory. File, base64 PEM, and private
+JWK imports and the Open Payments request-signing pipeline are still being
+implemented.
 
 ## Development
 

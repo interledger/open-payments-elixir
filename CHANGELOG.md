@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add unencrypted Ed25519 PKCS#8 PEM import with configuration validation and
+  independently generated Node crypto fixtures.
 - Add explicit Ed25519 key generation, raw seed import, and typed public JWK/JWKS
   export using OTP crypto, with redacted key inspection and configuration errors.
 - Add typed public JWK and JWKS models with schema validation, indexed errors,
