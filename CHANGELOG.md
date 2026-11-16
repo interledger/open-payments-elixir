@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add file and base64 PEM key imports with shared key validation, read-only file
+  handling, and configuration errors that omit paths and key material.
 - Add unencrypted Ed25519 PKCS#8 PEM import with configuration validation and
   independently generated Node crypto fixtures.
 - Add explicit Ed25519 key generation, raw seed import, and typed public JWK/JWKS

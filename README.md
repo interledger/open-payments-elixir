@@ -133,14 +133,24 @@ library. It requires a single PEM entry and rejects encrypted keys, public-only
 keys, other algorithms, and malformed inputs. It never generates a replacement
 when an import fails.
 
+Load PEM from a file or from base64-encoded configuration text:
+
+```elixir
+{:ok, key} = OpenPayments.Key.from_file("/path/to/private-key.pem", "registered-key-id")
+{:ok, key} = OpenPayments.Key.from_base64_pem(encoded_pem, "registered-key-id")
+```
+
+File import only reads the file. Base64 import accepts optional padding and ASCII
+whitespace; decoded contents must satisfy the same PEM requirements above. Invalid
+encoding, file-read failures, and invalid key contents return configuration errors.
+
 Key IDs must be nonblank strings. Invalid inputs return configuration errors
 without retaining rejected values.
 
 `public_jwk/1` and `public_jwks/1` return the typed public models described above,
 without private material. Key structs hide key material during inspection and have
-no JSON encoder; the seed remains in process memory. File, base64 PEM, and private
-JWK imports and the Open Payments request-signing pipeline are still being
-implemented.
+no JSON encoder; the seed remains in process memory. Private JWK import and the
+Open Payments request-signing pipeline are still being implemented.
 
 ## Development
 

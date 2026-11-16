@@ -5,6 +5,7 @@ defmodule OpenPayments.Key do
   `generate/1` creates a new key using OTP crypto. `from_seed/2` imports an exact
   32-byte Ed25519 seed and derives its public key. `from_pem/2` imports a single
   unencrypted Ed25519 PKCS#8 private-key entry using OTP's PEM parser.
+  `from_file/2` reads PEM from a file; `from_base64_pem/2` decodes base64 PEM text.
   Key IDs must be nonblank strings; their spelling is preserved, matching the
   Node SDK's public-key generator.
 
@@ -75,6 +76,45 @@ defmodule OpenPayments.Key do
     end
   end
 
+  @doc """
+  Reads a PEM private key from a UTF-8 file path without modifying the file.
+
+  File-read failures return configuration errors without retaining the path.
+  The contents are validated by `from_pem/2`; an import never creates or replaces
+  a key file. Paths must be nonempty strings without null bytes.
+  """
+  @spec from_file(String.t(), String.t()) :: {:ok, t()} | {:error, Error.t()}
+  def from_file(path, key_id) do
+    case read_pem_file(path) do
+      {:ok, pem} ->
+        from_pem(pem, key_id)
+
+      _error ->
+        invalid(key_id_errors(key_id) ++ [issue(:path, "must identify a readable PEM file")])
+    end
+  end
+
+  @doc """
+  Imports standard base64-encoded PEM text, as commonly stored in configuration.
+
+  Padding is optional and ASCII whitespace is ignored. Invalid base64 returns a
+  configuration issue on `base64_pem`; decoded contents use `from_pem/2` validation.
+  No alternate key format is inferred from the decoded data.
+  """
+  @spec from_base64_pem(binary(), String.t()) :: {:ok, t()} | {:error, Error.t()}
+  def from_base64_pem(encoded, key_id) do
+    case decode_base64_pem(encoded) do
+      {:ok, pem} ->
+        from_pem(pem, key_id)
+
+      :error ->
+        invalid(
+          key_id_errors(key_id) ++
+            [issue(:base64_pem, "must be standard base64-encoded PEM text")]
+        )
+    end
+  end
+
   @doc "Exports the public key as a typed Open Payments JWK."
   @spec public_jwk(t()) :: JWK.t()
   def public_jwk(%__MODULE__{} = key) do
@@ -90,6 +130,22 @@ defmodule OpenPayments.Key do
   @doc "Exports the public key in a typed Open Payments JWKS document."
   @spec public_jwks(t()) :: JWKS.t()
   def public_jwks(%__MODULE__{} = key), do: %JWKS{keys: [public_jwk(key)]}
+
+  defp read_pem_file(path) when is_binary(path) do
+    if Validation.string?(path) and path != "" and not String.contains?(path, <<0>>) do
+      File.read(path)
+    else
+      :error
+    end
+  end
+
+  defp read_pem_file(_path), do: :error
+
+  defp decode_base64_pem(encoded) when is_binary(encoded) do
+    Base.decode64(encoded, padding: false, ignore: :whitespace)
+  end
+
+  defp decode_base64_pem(_encoded), do: :error
 
   defp decode_pem(pem) when is_binary(pem) do
     with [{:PrivateKeyInfo, _der, :not_encrypted} = entry] <- :public_key.pem_decode(pem),
