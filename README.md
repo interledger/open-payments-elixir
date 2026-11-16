@@ -116,6 +116,25 @@ unrestricted additional JWK properties, these public types reject private `d`
 material and exclude it from public export. Cryptographic validation of decoded
 key bytes and key selection will be provided by the signing utilities.
 
+## Signing keys
+
+Generate a new Ed25519 key explicitly and export its public key for registration:
+
+```elixir
+{:ok, key} = OpenPayments.Key.generate("registered-key-id")
+public_key_set = OpenPayments.Key.public_jwks(key)
+{:ok, public_json} = Jason.encode(public_key_set)
+```
+
+`OpenPayments.Key.from_seed(seed, key_id)` imports an existing raw 32-byte Ed25519
+seed, preserving its identity. Key IDs must be nonblank strings. Invalid inputs
+return configuration errors without retaining rejected values.
+
+`public_jwk/1` and `public_jwks/1` return the typed public models described above,
+without private material. Key structs hide key material during inspection and have
+no JSON encoder; the seed remains in process memory. PEM and file imports and the
+Open Payments request-signing pipeline are still being implemented.
+
 ## Development
 
 ```sh

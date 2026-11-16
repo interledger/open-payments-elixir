@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add explicit Ed25519 key generation, raw seed import, and typed public JWK/JWKS
+  export using OTP crypto, with redacted key inspection and configuration errors.
 - Add typed public JWK and JWKS models with schema validation, indexed errors,
   JSON conversion, metadata preservation, and private-key export protection.
 - Add payment-pointer-to-URL conversion with standard well-known-path resolution
