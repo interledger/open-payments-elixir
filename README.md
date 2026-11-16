@@ -23,6 +23,55 @@ additional fields. The struct also supports `Jason.encode/1` with the protocol's
 field names. Invalid inputs return `{:error, %OpenPayments.Error{}}` with
 field-specific validation issues.
 
+## Wallet address data
+
+Decode wallet information into a typed struct:
+
+```elixir
+{:ok, wallet} =
+  OpenPayments.Types.WalletAddress.from_map(%{
+    "id" => "https://wallet.example.com/alice",
+    "assetCode" => "USD",
+    "assetScale" => 2,
+    "authServer" => "https://auth.wallet.example.com/123e4567-e89b-12d3-a456-426614174000",
+    "resourceServer" => "https://wallet.example.com/123e4567-e89b-12d3-a456-426614174000"
+  })
+
+wallet.resource_server
+# => "https://wallet.example.com/123e4567-e89b-12d3-a456-426614174000"
+```
+
+Additional JSON fields are preserved. `publicName` is optional; when present it
+must be a string. `WalletAddress.to_map/1` and the Jason encoder use protocol field
+names and omit an absent public name. This model performs no HTTP requests.
+
+The example uses the tenant-scoped endpoint layout documented by
+[Rafiki](https://rafiki.dev/overview/concepts/payment-pointers/). The SDK preserves
+server URLs exactly; it does not require tenant UUIDs or particular hostnames or paths.
+
+Following the Node SDK's separation of response data and request handling, this
+model validates the shared schema's URI format and preserves the data. It also
+accepts local HTTP data, including wallet IDs on `http://localhost:3000` and an
+auth server on `http://localhost:3006`, as documented for the
+[Rafiki playground](https://rafiki.dev/integration/playground/overview/).
+
+Successful decoding does not authorize an endpoint for network requests.
+Production wallet identifiers have stricter
+[Open Payments URL rules](https://openpayments.dev/concepts/wallet-addresses/):
+HTTPS with no user-info, explicit port, query, or fragment. Enforcing request
+policies belongs to the HTTP client, which is still being implemented.
+
+One deliberate validation difference: the Node SDK's `@interledger/openapi` 2.0.4
+response validator accepts malformed URI strings. This model enforces the shared
+schema's `uri` format and rejects malformed or relative URIs.
+
+Payment pointers such as `$wallet.example.com/alice` are shorthand input that must
+be converted to full URLs before discovery. The typed response model requires
+absolute URIs and does not perform payment-pointer conversion. The standard conversion is
+`$wallet.example.com/alice` → `https://wallet.example.com/alice`, or
+`$wallet.example.com` → `https://wallet.example.com/.well-known/pay`.
+See [payment-pointer syntax and resolution](https://paymentpointers.org/syntax/).
+
 ## Development
 
 ```sh

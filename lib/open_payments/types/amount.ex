@@ -16,6 +16,7 @@ defmodule OpenPayments.Types.Amount do
   """
 
   alias OpenPayments.Error
+  alias OpenPayments.Types.Validation
 
   @enforce_keys [:value, :asset_code, :asset_scale]
   defstruct [:value, :asset_code, :asset_scale, extensions: %{}]
@@ -55,11 +56,10 @@ defmodule OpenPayments.Types.Amount do
     errors =
       [
         {valid_value?(amount.value), :value, "must be an unsigned 64-bit decimal string"},
-        {is_binary(amount.asset_code) and String.valid?(amount.asset_code), :asset_code,
-         "must be a string"},
-        {is_integer(amount.asset_scale) and amount.asset_scale in 0..255, :asset_scale,
+        {Validation.string?(amount.asset_code), :asset_code, "must be a string"},
+        {Validation.asset_scale?(amount.asset_scale), :asset_scale,
          "must be an integer between 0 and 255"},
-        {valid_extensions?(amount.extensions), :extensions,
+        {Validation.extensions?(amount.extensions, @wire_fields), :extensions,
          "must be a JSON object with string keys and no reserved amount fields"}
       ]
       |> Enum.flat_map(fn
@@ -99,14 +99,6 @@ defmodule OpenPayments.Types.Amount do
   end
 
   defp valid_value?(_value), do: false
-
-  defp valid_extensions?(extensions) when is_map(extensions) and not is_struct(extensions) do
-    Enum.all?(Map.keys(extensions), fn key ->
-      is_binary(key) and key not in @wire_fields
-    end) and match?({:ok, _}, Jason.encode(extensions))
-  end
-
-  defp valid_extensions?(_extensions), do: false
 
   defp issue(field, message), do: %{field: field, message: message}
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the typed wallet-address model with URI-format validation, optional public-name
+  handling, JSON conversion, and extension preservation, tested against documented
+  tenant-scoped and local development endpoint layouts.
 - Add the typed amount model with uint64 validation, explicit JSON field mapping,
   extension preservation, and structured validation errors.
 - Initialize the Open Payments Elixir client package.
