@@ -156,6 +156,29 @@ defmodule OpenPayments.Key do
   @spec public_jwks(t()) :: JWKS.t()
   def public_jwks(%__MODULE__{} = key), do: %JWKS{keys: [public_jwk(key)]}
 
+  @doc "Returns the explicitly configured key ID without exposing key material."
+  @spec key_id(t()) :: String.t()
+  def key_id(%__MODULE__{key_id: key_id}), do: key_id
+
+  @doc """
+  Signs exact binary data with Ed25519, returning the raw signature bytes.
+
+  This operation does not construct an HTTP signature or send a request. Signing
+  failures return an error without retaining key material, input, or crypto details.
+  """
+  @spec sign(t(), binary()) :: {:ok, binary()} | {:error, Error.t()}
+  def sign(%__MODULE__{} = key, data) when is_binary(data) do
+    {:ok, :crypto.sign(:eddsa, :none, data, [key.private_key, :ed25519])}
+  rescue
+    _error in [ErlangError, ArgumentError] -> signing_failure()
+  end
+
+  def sign(_key, _data), do: signing_failure()
+
+  defp signing_failure do
+    {:error, %Error{kind: :signing, description: "Unable to create an Ed25519 signature"}}
+  end
+
   defp from_jwk_bytes(seed, public, key_id) do
     with {:ok, key} <- from_seed(seed, key_id) do
       if key.public_key == public,

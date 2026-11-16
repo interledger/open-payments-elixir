@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add internal Node-profile Signature and Signature-Input generation, opaque-key
+  Ed25519 signing, deterministic Node vectors, and covered-field tampering tests.
 - Prepare SHA-512 content digests and byte-accurate JSON content headers from the
   exact encoded request body, with RFC and independent Node crypto test vectors.
 - Add private Ed25519 JWK import with canonical key-byte validation, public/private

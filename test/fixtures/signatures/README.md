@@ -15,3 +15,23 @@ No trailing newline is included in that case.
 These vectors check hashing and byte counting. They do not assert that every
 input is valid JSON or a valid Open Payments payload; payload validation occurs
 before content-header preparation in the future request pipeline.
+
+## Signature vectors
+
+`node-signatures.json` records deterministic Ed25519 signatures, complete bases,
+and prepared headers. The source metadata records Node.js and package versions.
+The private key is the existing public RFC 8032 test-1 fixture under `keys`.
+The clock was fixed at Unix time 1618884473.
+
+Six vectors use `@interledger/http-signature-utils` 2.0.3 `createHeaders` directly.
+Three use its underlying `http-message-signatures` 1.0.8 `httpbis.signMessage` with
+the same component and parameter order, supplying exact-byte content headers or
+mixed-case authorization. Those cases exercise documented differences from the
+Node helper's JSON canonicalization, empty-body truthiness, and authorization
+casing check. Each vector identifies its source.
+
+Bases were constructed with the Node library's `createSignatureBase` and
+`formatSignatureBase`, and each result was checked with Node's `crypto.verify`
+before recording. The key-ID escaping, Unicode body, tenant paths, query encoding,
+HTTP development URL, and IPv6 cases require no live server or Node installation
+when the Elixir tests run. All tokens in these vectors are public test strings.

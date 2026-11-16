@@ -166,6 +166,10 @@ without private material. Key structs hide key material during inspection and ha
 no JSON encoder; the seed remains in process memory. The Open Payments
 request-signing pipeline is still being implemented.
 
+`OpenPayments.Key.key_id/1` reads the configured identifier. `Key.sign/2` signs
+exact binary data and returns raw Ed25519 signature bytes; it does not construct
+an HTTP request or send one.
+
 ## Development
 
 ```sh
@@ -218,9 +222,24 @@ helper hashes the supplied bytes directly, preserving whitespace, property order
 and Unicode spelling. Node's helper parses and re-serializes JSON before hashing.
 The future transport must send the same bytes used for the digest and signature.
 
-This is an internal signing building block. Open Payments `Signature` and
-`Signature-Input` generation, profile interoperability, and the HTTP pipeline are
-still being built.
+Internal header generation now uses the reviewed Node Open Payments profile:
+`sig1` covers `@method`, `@target-uri`, authorization when present, and all three
+content headers when a body is present. Its parameters are `keyid` and `created`,
+in that order. Header matching is case-insensitive. Structured-field escaping and
+signature-base construction use the signing dependency; private key bytes remain
+inside `OpenPayments.Key`.
+
+The profile matches deterministic vectors from `@interledger/http-signature-utils`
+2.0.3 for equivalent prepared requests. It uses SHA-512 content digests and has
+no `tag` or `nonce`. Final [GNAP RFC 9635 §7.3.1](https://www.rfc-editor.org/rfc/rfc9635.html#section-7.3.1)
+requires `tag="gnap"`, recommends a nonce, and defaults string-form `httpsig` to
+SHA-256. This initial profile follows the sibling SDK; it is not a claim of full
+final-GNAP profile compliance or live-server interoperability.
+
+These are internal signing building blocks, not a complete request API. The
+prepared message's method, final URI and headers must match transmission; payload
+encoding, URL/header policy, token formatting and the HTTP pipeline are still
+being built. Public reads will remain unsigned at the client boundary.
 
 ## License
 

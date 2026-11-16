@@ -127,4 +127,25 @@ defmodule OpenPayments.KeyTest do
     error = assert_raise Protocol.UndefinedError, fn -> Jason.encode!(key) end
     refute Exception.message(error) =~ seed
   end
+
+  test "signs the RFC 8032 vector through the opaque key API" do
+    {:ok, key} = Key.from_seed(@seed, "key-1")
+    assert Key.key_id(key) == "key-1"
+    assert Key.sign(key, "") == {:ok, @signature}
+  end
+
+  test "signing errors do not retain input or private material" do
+    {:ok, key} = Key.from_seed(@seed, "key-1")
+    invalid_key = %{key | private_key: "private-seed-must-not-leak"}
+
+    for {signing_key, data} <- [
+          {invalid_key, "private-body-must-not-leak"},
+          {key, ["private-body-must-not-leak"]},
+          {nil, "private-body-must-not-leak"}
+        ] do
+      assert {:error, %Error{kind: :signing} = error} = Key.sign(signing_key, data)
+      refute inspect(Map.from_struct(error)) =~ "private-seed-must-not-leak"
+      refute inspect(Map.from_struct(error)) =~ "private-body-must-not-leak"
+    end
+  end
 end
