@@ -6,6 +6,7 @@ defmodule OpenPayments.Key do
   32-byte Ed25519 seed and derives its public key. `from_pem/2` imports a single
   unencrypted Ed25519 PKCS#8 private-key entry using OTP's PEM parser.
   `from_file/2` reads PEM from a file; `from_base64_pem/2` decodes base64 PEM text.
+  `from_jwk/2` imports a private Ed25519 JWK and checks its public-key consistency.
   Key IDs must be nonblank strings; their spelling is preserved, matching the
   Node SDK's public-key generator.
 
@@ -18,6 +19,7 @@ defmodule OpenPayments.Key do
   """
 
   alias OpenPayments.Error
+  alias OpenPayments.Key.PrivateJWK
   alias OpenPayments.Types.{JWK, JWKS, Validation}
 
   @derive {Inspect, only: [:key_id]}
@@ -115,6 +117,29 @@ defmodule OpenPayments.Key do
     end
   end
 
+  @doc """
+  Imports a private Ed25519 JWK from a JSON object with string keys.
+
+  Requires `kty: "OKP"`, `crv: "Ed25519"`, and canonical unpadded base64url `d`
+  and `x` values encoding 32 bytes each. The public value must match the seed.
+  Optional `alg` and `use` must be `EdDSA` and `sig`; `key_ops`, when present,
+  must permit `sign` and may also permit `verify`, without duplicates.
+
+  The explicit `key_id` sets the exported ID. An optional JWK `kid` must be a
+  string but does not override it. Other JSON metadata is accepted and discarded.
+  Private JWKs are input only; public exports never include `d`.
+  """
+  @spec from_jwk(map(), String.t()) :: {:ok, t()} | {:error, Error.t()}
+  def from_jwk(jwk, key_id) do
+    case PrivateJWK.decode(jwk) do
+      {:ok, seed, public} ->
+        from_jwk_bytes(seed, public, key_id)
+
+      {:error, errors} ->
+        invalid(key_id_errors(key_id) ++ errors)
+    end
+  end
+
   @doc "Exports the public key as a typed Open Payments JWK."
   @spec public_jwk(t()) :: JWK.t()
   def public_jwk(%__MODULE__{} = key) do
@@ -130,6 +155,14 @@ defmodule OpenPayments.Key do
   @doc "Exports the public key in a typed Open Payments JWKS document."
   @spec public_jwks(t()) :: JWKS.t()
   def public_jwks(%__MODULE__{} = key), do: %JWKS{keys: [public_jwk(key)]}
+
+  defp from_jwk_bytes(seed, public, key_id) do
+    with {:ok, key} <- from_seed(seed, key_id) do
+      if key.public_key == public,
+        do: {:ok, key},
+        else: invalid([issue(:x, "must match the public key derived from d")])
+    end
+  end
 
   defp read_pem_file(path) when is_binary(path) do
     if Validation.string?(path) and path != "" and not String.contains?(path, <<0>>) do

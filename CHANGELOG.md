@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add private Ed25519 JWK import with canonical key-byte validation, public/private
+  consistency checks, signing metadata constraints, and Node interoperability tests.
 - Add file and base64 PEM key imports with shared key validation, read-only file
   handling, and configuration errors that omit paths and key material.
 - Add unencrypted Ed25519 PKCS#8 PEM import with configuration validation and

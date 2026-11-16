@@ -12,5 +12,11 @@
     "crv": "Ed25519",
     "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
   },
-  "signature": "zmpxTl3uScxvUN4NG4+hQtfz8b93KF/cRatNk85yeL0fstOiqwOMCSy21qQNArXrEuYy2pO0A11RxTwdo4LgCg=="
+  "signature": "zmpxTl3uScxvUN4NG4+hQtfz8b93KF/cRatNk85yeL0fstOiqwOMCSy21qQNArXrEuYy2pO0A11RxTwdo4LgCg==",
+  "private_jwk": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "d": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A"
+  }
 }

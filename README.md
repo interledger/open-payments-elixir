@@ -144,13 +144,27 @@ File import only reads the file. Base64 import accepts optional padding and ASCI
 whitespace; decoded contents must satisfy the same PEM requirements above. Invalid
 encoding, file-read failures, and invalid key contents return configuration errors.
 
+`OpenPayments.Key.from_jwk(private_jwk, key_id)` imports an Ed25519 private JWK,
+including Node's native JWK exports. It requires `kty: "OKP"`, `crv: "Ed25519"`,
+and canonical unpadded base64url `d` and `x` values encoding 32 bytes each. The
+public key must match the private seed. Unlike public response models, this
+cryptographic import checks decoded key sizes and key consistency.
+
+Optional `alg` and `use` must be `EdDSA` and `sig`. If `key_ops` is supplied, it
+must allow `sign` and may also allow `verify`, without duplicates. The explicit
+`key_id` determines the exported ID; any JWK `kid` must be a string and does not
+override it. Other JSON metadata is accepted and discarded. This import follows
+the [OKP key format](https://www.rfc-editor.org/rfc/rfc8037.html#section-2) and
+[JWK operation restrictions](https://www.rfc-editor.org/rfc/rfc7517.html#section-4.3)
+for signing keys.
+
 Key IDs must be nonblank strings. Invalid inputs return configuration errors
 without retaining rejected values.
 
 `public_jwk/1` and `public_jwks/1` return the typed public models described above,
 without private material. Key structs hide key material during inspection and have
-no JSON encoder; the seed remains in process memory. Private JWK import and the
-Open Payments request-signing pipeline are still being implemented.
+no JSON encoder; the seed remains in process memory. The Open Payments
+request-signing pipeline is still being implemented.
 
 ## Development
 
