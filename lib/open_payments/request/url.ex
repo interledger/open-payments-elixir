@@ -12,7 +12,8 @@ defmodule OpenPayments.Request.URL do
          {:ok, uri} <- URI.new(url),
          true <- uri.scheme == "https" or (uri.scheme == "http" and allow_http),
          true <- is_integer(uri.port) and uri.port in 0..65_535 do
-      uri = %{uri | host: String.downcase(uri.host), path: uri.path || "/"}
+      query = if uri.query == "", do: nil, else: uri.query
+      uri = %{uri | host: String.downcase(uri.host), path: uri.path || "/", query: query}
       {:ok, URI.to_string(uri)}
     else
       _other ->

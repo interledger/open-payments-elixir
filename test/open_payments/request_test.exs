@@ -51,7 +51,7 @@ defmodule OpenPayments.RequestTest do
     assert {:ok, %{url: "https://wallet.example.com/"}} =
              Request.prepare(:get, "HTTPS://Wallet.Example.COM:443")
 
-    assert {:ok, %{url: "https://wallet.example.com/?"}} =
+    assert {:ok, %{url: "https://wallet.example.com/"}} =
              Request.prepare(:get, "https://wallet.example.com?")
   end
 

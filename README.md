@@ -246,8 +246,10 @@ and require a signing key.
 
 Request URLs require HTTPS by default; HTTP needs explicit `allow_http: true`.
 User-info and fragments are rejected. Host case, default ports and empty root
-paths are normalized; paths and query strings retain their spelling, including
-percent escapes, ordering and dot segments. This preserves more path spelling
+paths are normalized; paths and nonempty query strings retain their spelling,
+including percent escapes, ordering and dot segments. A trailing empty `?` is
+removed before signing to match Finch's actual request-target serialization.
+This preserves more path spelling
 than Node's WHATWG URL handling. Wallet-identifier discovery rules and operation
 payload validation belong to the resource clients, separately from this generic
 HTTP request preparation.
@@ -256,8 +258,19 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks; the public
-client API, HTTP execution and verification of actual transmitted bytes remain
-to be implemented.
+client API and resource response handling remain to be implemented.
+
+The internal transport sends prepared requests through Req's low-level API.
+It has no automatic retries, redirects, request re-encoding, response decoding,
+or decompression, and does not inherit global Req defaults or plugins. It sets
+Host from the prepared URL, including IPv6 brackets and nondefault ports. Local
+TCP tests verify the actual received target, headers, body digest and signature.
+
+Connect and pool timeouts default to 5 seconds; receive and complete-response
+timeouts default to 15 seconds. Each accepts a finite positive millisecond value.
+A Req adapter module can be supplied for testing. Transport errors return safe
+SDK errors; all HTTP status codes return raw response data for the future resource
+layer to interpret. This transport does not establish live-server interoperability.
 
 ## License
 
