@@ -236,10 +236,28 @@ requires `tag="gnap"`, recommends a nonce, and defaults string-form `httpsig` to
 SHA-256. This initial profile follows the sibling SDK; it is not a claim of full
 final-GNAP profile compliance or live-server interoperability.
 
-These are internal signing building blocks, not a complete request API. The
-prepared message's method, final URI and headers must match transmission; payload
-encoding, URL/header policy, token formatting and the HTTP pipeline are still
-being built. Public reads will remain unsigned at the client boundary.
+Internal request preparation now assembles the final method, URL, headers and
+body before signing. JSON is encoded once; pre-encoded body bytes are retained.
+Omitted bodies, empty binaries, and JSON null have distinct representations.
+The signing key and access token are per-request values. A key explicitly requests
+signing; public operations omit it. Key-bound GNAP tokens use the
+[token68 character set](https://www.rfc-editor.org/rfc/rfc9635.html#section-3.2.1)
+and require a signing key.
+
+Request URLs require HTTPS by default; HTTP needs explicit `allow_http: true`.
+User-info and fragments are rejected. Host case, default ports and empty root
+paths are normalized; paths and query strings retain their spelling, including
+percent escapes, ordering and dot segments. This preserves more path spelling
+than Node's WHATWG URL handling. Wallet-identifier discovery rules and operation
+payload validation belong to the resource clients, separately from this generic
+HTTP request preparation.
+
+Custom headers are checked for case-insensitive duplicates and invalid ASCII or
+control characters. Authorization, content/signature headers and transport framing
+are SDK-owned and cannot be overridden through custom headers. Request inspection
+omits URLs, headers and bodies. These are internal building blocks; the public
+client API, HTTP execution and verification of actual transmitted bytes remain
+to be implemented.
 
 ## License
 

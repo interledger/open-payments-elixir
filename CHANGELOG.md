@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add immutable request preparation with one-time JSON encoding, per-request
+  GNAP authorization/signing, URL and header policies, and safe inspection/errors.
 - Add internal Node-profile Signature and Signature-Input generation, opaque-key
   Ed25519 signing, deterministic Node vectors, and covered-field tampering tests.
 - Prepare SHA-512 content digests and byte-accurate JSON content headers from the
