@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the typed amount model with uint64 validation, explicit JSON field mapping,
+  extension preservation, and structured validation errors.
 - Initialize the Open Payments Elixir client package.
 - Bundle the shared Open Payments 1.5.0 specifications with revision and checksums.
 - Add a reproducible specification sync/check task and operation inventory.

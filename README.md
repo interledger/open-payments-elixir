@@ -7,6 +7,22 @@ The package is under development and has not been published.
 Its package/application name is `open_payments_elixir`; Elixir modules use the
 `OpenPayments` namespace.
 
+## Amounts
+
+Amounts retain integer values as decimal strings, with explicit asset codes and
+scales:
+
+```elixir
+{:ok, amount} = OpenPayments.Types.Amount.new("1000", "USD", 2)
+OpenPayments.Types.Amount.to_map(amount)
+# => %{"value" => "1000", "assetCode" => "USD", "assetScale" => 2}
+```
+
+`OpenPayments.Types.Amount.from_map/1` validates decoded JSON objects, retaining
+additional fields. The struct also supports `Jason.encode/1` with the protocol's
+field names. Invalid inputs return `{:error, %OpenPayments.Error{}}` with
+field-specific validation issues.
+
 ## Development
 
 ```sh
