@@ -65,12 +65,26 @@ One deliberate validation difference: the Node SDK's `@interledger/openapi` 2.0.
 response validator accepts malformed URI strings. This model enforces the shared
 schema's `uri` format and rejects malformed or relative URIs.
 
-Payment pointers such as `$wallet.example.com/alice` are shorthand input that must
-be converted to full URLs before discovery. The typed response model requires
-absolute URIs and does not perform payment-pointer conversion. The standard conversion is
-`$wallet.example.com/alice` → `https://wallet.example.com/alice`, or
-`$wallet.example.com` → `https://wallet.example.com/.well-known/pay`.
-See [payment-pointer syntax and resolution](https://paymentpointers.org/syntax/).
+## Payment pointers
+
+Convert payment-pointer shorthand to an HTTPS discovery URL:
+
+```elixir
+OpenPayments.PaymentPointer.to_url("$wallet.example.com/alice")
+# => {:ok, "https://wallet.example.com/alice"}
+
+OpenPayments.PaymentPointer.to_url("$wallet.example.com")
+# => {:ok, "https://wallet.example.com/.well-known/pay"}
+```
+
+Both `$host` and `$host/` use `/.well-known/pay`; other paths are preserved.
+User-info, explicit ports, queries, fragments, and malformed input return
+`{:error, %OpenPayments.Error{}}`. Full URLs should be passed directly to discovery,
+rather than to this shorthand-only helper.
+
+This helper implements [payment-pointer syntax and resolution](https://paymentpointers.org/syntax/)
+without making requests. Discovery must still check whether the resulting endpoint
+supports Open Payments. Wallet response fields remain unchanged by this helper.
 
 ## Development
 

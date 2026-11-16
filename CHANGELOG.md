@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add payment-pointer-to-URL conversion with standard well-known-path resolution
+  and validation of the restricted pointer syntax.
 - Add the typed wallet-address model with URI-format validation, optional public-name
   handling, JSON conversion, and extension preservation, tested against documented
   tenant-scoped and local development endpoint layouts.
