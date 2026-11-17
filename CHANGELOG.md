@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add subject and subject-identifier types with exact array cardinality, preserved
+  JSON extensions, indexed validation errors and redacted inspection.
 - Add typed outgoing grant access and complete access-array validation, with nested
   limits/card payloads, cardinality/uniqueness checks and indexed safe errors.
 - Add card-authorization and PIN working-key payload types with strict fields,

@@ -262,6 +262,29 @@ protocol data. These codecs perform no EMV decoding, PIN encryption, request-ID
 generation, replay correlation or network requests. `AccessOutgoing` composes
 these payloads; grant requests and operations remain under development.
 
+## Grant subject information
+
+`OpenPayments.Types.Subject` contains exactly one typed `SubjectIdentifier` in its
+required `sub_ids` array:
+
+```elixir
+{:ok, subject} = OpenPayments.Types.Subject.from_map(%{
+  "sub_ids" => [%{"id" => "https://wallet.example.com/alice", "format" => "uri"}]
+})
+```
+
+Missing, null, empty and multi-entry `sub_ids` arrays are rejected. Each identifier
+requires an `id` string and the exact format discriminator `uri`. The pinned
+schema puts no URI-format, pattern or minimum-length constraint on `id` itself;
+its supplied spelling is retained without wallet discovery or request-target
+validation. Additional JSON fields are preserved in `extensions` at both levels.
+
+Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding. The
+wire name remains `sub_ids`. Errors include safe paths such as `sub_ids[0].format`.
+Inspection omits identifiers and extension values; explicit protocol exports
+contain them. These types describe subject information without verifying identity
+or making requests. Complete grant requests and operations remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:
