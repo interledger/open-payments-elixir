@@ -319,8 +319,8 @@ JSON encoding preserve protocol field names and string/object identity forms.
 Inspection omits payload values; explicit exports include any card data, callback
 nonces and subject identifiers. Nested errors use paths such as
 `access_token.access[0].card_authorization.pwk.key`. These codecs make no requests,
-perform no signing-key/identity match and do not verify callbacks. Grant response
-models and the signed HTTP operation remain under development.
+perform no signing-key/identity match and do not verify callbacks. The signed
+HTTP operation remains under development.
 
 ## Issued access-token data
 
@@ -337,8 +337,8 @@ those concerns belong to token use and management operations.
 
 Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
 export protocol values, including the token and nested card results. Inspection
-shows only expiry metadata; errors retain safe field paths. Complete grant-response
-models and signed grant/token operations remain under development.
+shows only expiry metadata; errors retain safe field paths. Signed grant/token
+operations remain under development.
 
 ## Grant continuation data
 
@@ -382,7 +382,36 @@ server's string and does not open the consent URI or verify the callback hash.
 
 Use `validate/1` after modifying the struct. `to_map/1` and JSON encoding export
 the protocol values; inspection hides redirect, finish and extension data.
-Complete grant-response composition and callback verification remain under development.
+Callback verification remains under development.
+
+## Initial grant responses
+
+`OpenPayments.Types.GrantResponse.from_map/1` decodes the response to an initial
+grant request. It requires a typed `continue` object and exactly one of:
+
+- `interact`: typed `InteractionResponse` instructions for pending interaction.
+- `access_token`: a typed issued `AccessToken` for immediate approval.
+
+`GrantResponse.pending?/1` and `approved?/1` report the typed branch shape. They
+do not revalidate modified nested data; call `validate/1` for that check. Neither
+predicate verifies a callback or establishes permission to use a resource.
+
+An accompanying `subject` becomes a typed `Subject`, matching the Node SDK's
+grant model and the initial schema's allowance for extra fields. Subject-only
+and wait-only results belong to the separate continuation-response contract;
+they are rejected by this initial-response codec.
+
+All recognized fields are validated when present, including explicit-null
+rejection. This deliberately also rejects malformed `access_token` data beside
+an otherwise valid interaction branch, and the reverse, although the schema's
+permissive extra fields can allow those cases in the other branch. Other JSON
+fields are preserved in `extensions`.
+
+`validate/1` revalidates typed children and branch rules. `to_map/1` and JSON
+encoding retain protocol field names and include credentials, callback values,
+subject identifiers and any card results. Inspection omits payload values and
+errors retain safe nested field paths. Continuation-response composition and
+signed grant operations remain under development.
 
 ## Public incoming payments
 

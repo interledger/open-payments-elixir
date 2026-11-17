@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed initial grant responses with pending/approved predicates, nested
+  validation, subject/extension preservation and redacted inspection/errors.
 - Add typed pending-grant interaction instructions with redirect/finish validation,
   preserved JSON extensions and redacted inspection/errors.
 - Add typed grant continuation data and separate continuation credentials, with
