@@ -322,6 +322,24 @@ nonces and subject identifiers. Nested errors use paths such as
 perform no signing-key/identity match and do not verify callbacks. Grant response
 models and the signed HTTP operation remain under development.
 
+## Issued access-token data
+
+`OpenPayments.Types.AccessToken.from_map/1` decodes an issued `access_token` object
+from a grant or continuation response. Required fields are the opaque string
+`value`, absolute management URI `manage`, and typed `access` list. Optional
+`expires_in` is an integer; omission becomes nil and explicit null is invalid.
+Additional fields, including camel-case `expiresIn`, are rejected.
+
+Token strings, management URI spelling and expiry metadata are retained as
+received. The schema declares no minimum or maximum expiry integer. This response
+codec does not calculate elapsed time or apply outgoing request URL/header policy;
+those concerns belong to token use and management operations.
+
+Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
+export protocol values, including the token and nested card results. Inspection
+shows only expiry metadata; errors retain safe field paths. Continuation credentials,
+complete grant-response models and signed grant/token operations remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:

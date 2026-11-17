@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the issued access-token response type with typed access entries, expiry/URI
+  validation, strict fields, JSON codecs and redacted inspection/errors.
 - Add complete grant-request and access-token-request types with typed composition,
   request-variant and directed-identity validation, JSON codecs and safe errors.
 - Add subject and subject-identifier types with exact array cardinality, preserved
