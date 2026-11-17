@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed outgoing grant access and complete access-array validation, with nested
+  limits/card payloads, cardinality/uniqueness checks and indexed safe errors.
 - Add card-authorization and PIN working-key payload types with strict fields,
   the PIN-block dependency, JSON codecs and redacted inspection/errors.
 - Add typed outgoing-payment grant limits with exclusive debit/receive amounts,

@@ -189,8 +189,35 @@ restrictions. Quote entries do not accept an identifier.
 Both types validate the enclosing `access-item` union, which forbids extra fields.
 They provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding. These codecs
 describe individual permission entries; they do not obtain grants or authorize
-requests. Outgoing access, access-array validation and complete grant requests
-remain under development.
+requests.
+
+`OpenPayments.Types.AccessOutgoing` uses type `outgoing-payment` and requires an
+absolute-URI `identifier`. Its unique actions may be `create`, `read`, `read-all`,
+`list` and `list-all`. Optional `limits` and `cardAuthorization` decode to typed
+`OutgoingLimits` and `CardAuthorization`; explicit nulls and extra top-level fields
+are rejected. Inspection omits identifiers, limits and card payloads.
+
+Use `OpenPayments.Types.Access` to validate a complete access array:
+
+```elixir
+{:ok, access} = OpenPayments.Types.Access.from_list([
+  %{"type" => "incoming-payment", "actions" => ["create", "read"]},
+  %{"type" => "quote", "actions" => ["create"]}
+])
+
+OpenPayments.Types.Access.validate(access)
+# => :ok
+```
+
+The result is a list of typed access structs. `OpenPayments.Types.Access.to_list/1` converts it to
+wire maps; Jason also encodes the typed list directly. Empty arrays are allowed,
+with at most three unique complete access objects. Distinct entries of the same
+resource type are permitted. Entry and action order are preserved. Uniqueness
+follows [JSON Schema equality](https://json-schema.org/draft/2020-12/json-schema-core#section-4.2.2),
+including object-key order independence and equivalent numeric values in metadata.
+Errors carry indexed paths such as `access[1].card_authorization.pwk.key`, without
+retaining rejected payloads. Explicit JSON exports include card data. Complete
+grant requests and operations remain under development.
 
 Outgoing-payment limits are described by `OpenPayments.Types.OutgoingLimits`:
 
@@ -232,8 +259,8 @@ hex, byte-length or request-ID format constraint.
 Inspection omits all card and working-key values, and validation errors contain
 safe paths such as `pwk.kvc`. Explicit map/JSON exports include the sensitive
 protocol data. These codecs perform no EMV decoding, PIN encryption, request-ID
-generation, replay correlation or network requests. Outgoing-access integration
-and grant operations remain under development.
+generation, replay correlation or network requests. `AccessOutgoing` composes
+these payloads; grant requests and operations remain under development.
 
 ## Public incoming payments
 
