@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add public client construction and unsigned wallet discovery from URLs or payment
+  pointers, with typed responses, request policies and structured HTTP/decoding errors.
 - Add raw Req transport with finite timeouts, safe errors, and no automatic retries,
   redirects or decoding; verify signed wire bytes and align empty-query/IPv6 Host handling.
 - Add immutable request preparation with one-time JSON encoding, per-request

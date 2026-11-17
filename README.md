@@ -7,6 +7,47 @@ The package is under development and has not been published.
 Its package/application name is `open_payments_elixir`; Elixir modules use the
 `OpenPayments` namespace.
 
+## Public wallet discovery
+
+Create a public client and look up a wallet using its URL or payment pointer:
+
+```elixir
+{:ok, client} = OpenPayments.Client.new_public()
+{:ok, wallet} = OpenPayments.WalletAddress.get(client, "$wallet.example.com/alice")
+
+wallet.auth_server
+wallet.resource_server
+```
+
+Replace the example address with a conforming Open Payments wallet. Discovery is
+an unsigned GET returning `{:ok, %OpenPayments.Types.WalletAddress{}}` or
+`{:error, %OpenPayments.Error{}}`. The client requests JSON with identity encoding,
+validates the response, and preserves returned server URLs and additional fields.
+
+Public clients accept positive millisecond timeout options and a custom headers
+map. Accept/Accept-Encoding and signing/transport headers are SDK-owned. A Req
+adapter module can be supplied for tests. Clients make no requests on construction
+and can be shared between processes without storing per-call tokens.
+
+For a local playground, opt into HTTP explicitly:
+
+```elixir
+{:ok, client} = OpenPayments.Client.new_public(allow_http: true, receive_timeout: 5_000)
+{:ok, wallet} = OpenPayments.WalletAddress.get(client, "http://localhost:3000/accounts/alice")
+```
+
+Production discovery identifiers follow the [wallet-address URL rules](https://openpayments.dev/concepts/wallet-addresses/):
+HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
+may include a local port when enabled. This request-side policy is stricter than
+Node's generic URL handling; the response model continues to follow its URI schema.
+Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
+followed. Authenticated client/resource operations are still being implemented.
+
+Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
+and recognized server error fields; invalid success JSON or wallet data returns a
+decoding error. Non-JSON error bodies are not copied into diagnostics. Inspection
+omits server descriptions/details; read those fields explicitly when needed.
+
 ## Amounts
 
 Amounts retain integer values as decimal strings, with explicit asset codes and
@@ -59,7 +100,7 @@ Successful decoding does not authorize an endpoint for network requests.
 Production wallet identifiers have stricter
 [Open Payments URL rules](https://openpayments.dev/concepts/wallet-addresses/):
 HTTPS with no user-info, explicit port, query, or fragment. Enforcing request
-policies belongs to the HTTP client, which is still being implemented.
+policies belongs to request preparation and discovery, separately from this model.
 
 One deliberate validation difference: the Node SDK's `@interledger/openapi` 2.0.4
 response validator accepts malformed URI strings. This model enforces the shared
@@ -257,8 +298,8 @@ HTTP request preparation.
 Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
-omits URLs, headers and bodies. These are internal building blocks; the public
-client API and resource response handling remain to be implemented.
+omits URLs, headers and bodies. These are internal building blocks used by the
+public client and wallet discovery; authenticated resources remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.
 It has no automatic retries, redirects, request re-encoding, response decoding,
@@ -269,8 +310,8 @@ TCP tests verify the actual received target, headers, body digest and signature.
 Connect and pool timeouts default to 5 seconds; receive and complete-response
 timeouts default to 15 seconds. Each accepts a finite positive millisecond value.
 A Req adapter module can be supplied for testing. Transport errors return safe
-SDK errors; all HTTP status codes return raw response data for the future resource
-layer to interpret. This transport does not establish live-server interoperability.
+SDK errors; all HTTP status codes return raw response data for resource-level JSON,
+error and schema handling. This transport does not establish live-server interoperability.
 
 ## License
 

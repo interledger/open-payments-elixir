@@ -12,6 +12,9 @@ defmodule OpenPayments.Transport do
   @options Keyword.keys(@timeouts) ++ [:adapter]
   @safe_reasons ~w(timeout nxdomain econnrefused closed enetunreach ehostunreach econnreset)a
 
+  @spec configure(keyword()) :: {:ok, keyword()} | {:error, Error.t()}
+  def configure(opts), do: options(opts)
+
   @spec execute(Request.t(), keyword()) :: {:ok, Response.t()} | {:error, Error.t()}
   def execute(request, opts \\ [])
 
