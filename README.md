@@ -118,9 +118,10 @@ OpenPayments.Types.GrantClient.to_value(identity)
 field names. URI values retain their spelling; this data codec does not resolve
 payment pointers or fetch keys. Directed identities contain validated public JWK
 structs and reject private key material. Inspection omits nested JWK/display data.
-Use `validate/1` after modifying a struct. Matching a directed JWK to the signing
-key and enforcing its non-interactive-grant restriction belong to the upcoming
-grant-request layer; this type makes no requests or changes to client configuration.
+Use `validate/1` after modifying a struct. `GrantRequest` enforces the restriction
+on directed identity with explicit interaction; matching the public JWK to the
+configured signing key belongs to the upcoming grant operation. This identity
+codec makes no requests or changes to client configuration.
 
 ## Grant client display information
 
@@ -133,8 +134,8 @@ and JSON encoding omit nil fields and preserve the protocol name `logo_uri`.
 URI values are preserved and follow the schema's absolute-URI format, including
 `data:` image URIs. This self-asserted information is not verified by the SDK and
 no URI is fetched. `GrantClient` composes this metadata with either object identity.
-Grant request assembly and HTTP operations remain under development; display
-metadata does not change client-constructor options.
+`GrantRequest` composes this identity data; grant HTTP operations remain under
+development. Display metadata does not change client-constructor options.
 
 ## Grant interaction requests
 
@@ -216,8 +217,9 @@ resource type are permitted. Entry and action order are preserved. Uniqueness
 follows [JSON Schema equality](https://json-schema.org/draft/2020-12/json-schema-core#section-4.2.2),
 including object-key order independence and equivalent numeric values in metadata.
 Errors carry indexed paths such as `access[1].card_authorization.pwk.key`, without
-retaining rejected payloads. Explicit JSON exports include card data. Complete
-grant requests and operations remain under development.
+retaining rejected payloads. Explicit JSON exports include card data.
+`GrantRequest` composes these access requests; grant HTTP operations remain under
+development.
 
 Outgoing-payment limits are described by `OpenPayments.Types.OutgoingLimits`:
 
@@ -260,7 +262,7 @@ Inspection omits all card and working-key values, and validation errors contain
 safe paths such as `pwk.kvc`. Explicit map/JSON exports include the sensitive
 protocol data. These codecs perform no EMV decoding, PIN encryption, request-ID
 generation, replay correlation or network requests. `AccessOutgoing` composes
-these payloads; grant requests and operations remain under development.
+these payloads; grant HTTP operations remain under development.
 
 ## Grant subject information
 
@@ -283,7 +285,42 @@ Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding. The
 wire name remains `sub_ids`. Errors include safe paths such as `sub_ids[0].format`.
 Inspection omits identifiers and extension values; explicit protocol exports
 contain them. These types describe subject information without verifying identity
-or making requests. Complete grant requests and operations remain under development.
+or making requests. `GrantRequest` composes subject data; grant HTTP operations
+remain under development.
+
+## Complete grant-request data
+
+`OpenPayments.Types.GrantRequest.from_map/1` composes the client identity,
+requested access, interaction and subject types into a complete grant payload:
+
+```elixir
+{:ok, request} = OpenPayments.Types.GrantRequest.from_map(%{
+  "client" => %{"walletAddress" => "https://wallet.example.com/alice"},
+  "access_token" => %{
+    "access" => [%{"type" => "incoming-payment", "actions" => ["create", "read"]}]
+  }
+})
+
+OpenPayments.Types.GrantRequest.validate(request)
+# => :ok
+```
+
+`client` is required. Requests may contain `access_token`, or `subject` with
+`interact`, or both. Subject data alongside an access-token request does not
+itself require interaction. Directed public-JWK identity rejects an explicit
+`interact` field, following the specification's non-interactive restriction.
+
+The `access_token` object becomes an `OpenPayments.Types.AccessTokenRequest` with
+a typed access list. Optional fields become nil when omitted; explicit nulls are
+rejected. Permitted JSON extensions are preserved at the grant and access-token
+request levels. `validate/1` revalidates all nested typed models; `to_map/1` and
+JSON encoding preserve protocol field names and string/object identity forms.
+
+Inspection omits payload values; explicit exports include any card data, callback
+nonces and subject identifiers. Nested errors use paths such as
+`access_token.access[0].card_authorization.pwk.key`. These codecs make no requests,
+perform no signing-key/identity match and do not verify callbacks. Grant response
+models and the signed HTTP operation remain under development.
 
 ## Public incoming payments
 
