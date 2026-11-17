@@ -215,6 +215,26 @@ calculated. Additional JSON fields remain in `extensions`. The type provides
 `from_map/1`, `validate/1`, `to_map/1` and JSON encoding, without network requests or
 spending tracking. Inspection omits amount and extension metadata.
 
+## Card authorization payloads
+
+`OpenPayments.Types.CardAuthorization` represents card credentials or results on
+outgoing-payment access. Required protocol fields are `tlvData` and `requestId`,
+mapped to `tlv_data` and `request_id` in the struct. Optional `pinBlock` maps to
+`pin_block` and requires a typed `OpenPayments.Types.PINWorkingKey` in `pwk`
+whenever present, including for an empty string. A working key may be supplied
+without a PIN block. Omitted optional fields become nil; explicit nulls are rejected.
+
+`PINWorkingKey` requires the exact string fields `key`, `kvc` and `iv`. Both types
+forbid extra fields and provide `from_map/1`, `validate/1`, `to_map/1` and JSON
+encoding. Payload strings retain their supplied values; the schema declares no
+hex, byte-length or request-ID format constraint.
+
+Inspection omits all card and working-key values, and validation errors contain
+safe paths such as `pwk.kvc`. Explicit map/JSON exports include the sensitive
+protocol data. These codecs perform no EMV decoding, PIN encryption, request-ID
+generation, replay correlation or network requests. Outgoing-access integration
+and grant operations remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:

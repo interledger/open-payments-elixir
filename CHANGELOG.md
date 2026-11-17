@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add card-authorization and PIN working-key payload types with strict fields,
+  the PIN-block dependency, JSON codecs and redacted inspection/errors.
 - Add typed outgoing-payment grant limits with exclusive debit/receive amounts,
   receiver validation, preserved interval/extension data and JSON codecs.
 - Add incoming-payment and quote grant-access types with unique action validation,
