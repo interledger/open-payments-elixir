@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add authenticated client construction with explicit key imports or validated
+  existing keys, shared wallet identity policies and internal per-call signing.
 - Add unsigned public incoming-payment reads from full resource URLs, with typed
   responses, schema validation and operation-specific HTTP/decoding/transport errors.
 - Add the public incoming-payment response type with nested amounts and methods,

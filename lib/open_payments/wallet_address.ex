@@ -9,10 +9,10 @@ defmodule OpenPayments.WalletAddress do
   from a provider's layout. Redirects are returned as HTTP errors.
   """
 
-  alias OpenPayments.{Client, Error, PaymentPointer}
-  alias OpenPayments.Request.URL
+  alias OpenPayments.{Client, Error}
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.{JWKS, Validation, WalletAddress}
+  alias OpenPayments.Types.{JWKS, WalletAddress}
+  alias OpenPayments.WalletAddress.URL
 
   @doc "Fetches and validates public wallet information without signing the request."
   @spec get(Client.t(), String.t()) :: {:ok, WalletAddress.t()} | {:error, Error.t()}
@@ -34,8 +34,7 @@ defmodule OpenPayments.WalletAddress do
 
   defp fetch(client, address, operation, decoder) do
     with {:ok, client} <- Client.validate(client),
-         {:ok, url} <- resolve(address),
-         {:ok, url} <- wallet_url(url, Client.allow_http?(client)),
+         {:ok, url} <- URL.prepare(address, Client.allow_http?(client)),
          {:ok, response} <- Client.request(client, :get, resource_url(url, operation)),
          {:ok, data} <- JSON.decode(response, [200], operation),
          {:ok, resource} <- decode(data, response.status, decoder) do
@@ -49,35 +48,6 @@ defmodule OpenPayments.WalletAddress do
 
   defp resource_url(url, :get_wallet_address_keys),
     do: url <> if(String.ends_with?(url, "/"), do: "jwks.json", else: "/jwks.json")
-
-  defp resolve("$" <> _address = pointer), do: PaymentPointer.to_url(pointer)
-  defp resolve(address), do: {:ok, address}
-
-  defp wallet_url(url, allow_http) do
-    with true <- Validation.absolute_uri?(url),
-         %{} = parts <- :uri_string.parse(url),
-         false <- Map.has_key?(parts, :query),
-         true <-
-           not Map.has_key?(parts, :port) or
-             (String.downcase(parts.scheme) == "http" and allow_http),
-         {:ok, url} <- URL.prepare(url, allow_http) do
-      {:ok, url}
-    else
-      _other ->
-        {:error,
-         %Error{
-           kind: :validation,
-           description: "Invalid Open Payments wallet URL",
-           validation_errors: [
-             %{
-               field: :wallet_address,
-               message:
-                 "must be a wallet URL without user-info, port, query or fragment; HTTP development URLs may use a port"
-             }
-           ]
-         }}
-    end
-  end
 
   defp decode(data, status, decoder) do
     case decoder.(data) do

@@ -160,6 +160,18 @@ defmodule OpenPayments.Key do
   @spec key_id(t()) :: String.t()
   def key_id(%__MODULE__{key_id: key_id}), do: key_id
 
+  @doc false
+  @spec validate(term()) :: {:ok, t()} | {:error, Error.t()}
+  def validate(%__MODULE__{private_key: seed, public_key: public, key_id: key_id} = key) do
+    with {:ok, derived} <- from_seed(seed, key_id) do
+      if derived.public_key == public,
+        do: {:ok, key},
+        else: invalid([issue(:key, "must contain a matching Ed25519 public key and seed")])
+    end
+  end
+
+  def validate(_key), do: invalid([issue(:key, "must be an Open Payments key")])
+
   @doc """
   Signs exact binary data with Ed25519, returning the raw signature bytes.
 

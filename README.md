@@ -41,7 +41,7 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Authenticated client/resource operations are still being implemented.
+followed. Grant, token and authenticated resource operations are still being implemented.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -64,6 +64,39 @@ rather than the complete JWKS endpoint. Each call fetches afresh without caching
 key selection or signature verification. Empty key sets and duplicate key IDs
 follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
 indexed validation paths such as `keys[1].d` for a rejected private key field.
+
+## Authenticated client configuration
+
+Configure a wallet identity and an Ed25519 key for authenticated operations:
+
+```elixir
+{:ok, client} =
+  OpenPayments.Client.new_authenticated(
+    wallet_address: "https://wallet.example.com/alice",
+    key_id: "registered-key-id",
+    private_key: {:file, "private-key.pem"}
+  )
+
+OpenPayments.Client.authenticated?(client)
+# => true
+OpenPayments.Client.wallet_address(client)
+# => "https://wallet.example.com/alice"
+```
+
+Private-key sources are explicit: `{:pem, text}`, `{:file, path}`,
+`{:base64_pem, text}`, `{:jwk, map}`, or `{:seed, bytes}`. Alternatively, supply
+`key: key` using an existing `OpenPayments.Key` and omit `private_key`/`key_id`.
+The key's public/seed consistency and key ID are checked. Invalid input returns a
+configuration error without retaining rejected values or generating a replacement
+key. No key source is guessed from a string.
+
+The constructor accepts the same HTTP options as `new_public/1`. Wallet identities
+use the same URL/payment-pointer rules as discovery and are normalized once.
+Construction makes no HTTP requests and does not check wallet/key registration.
+Client inspection omits the identity, key and custom headers. Access tokens remain
+per-call data rather than client state. Public reads stay unsigned, following
+Node's public-GET behavior; signed dispatch is an internal building block for the
+upcoming grant, token and authenticated resource operations.
 
 ## Public incoming payments
 
