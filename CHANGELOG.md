@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed pending-grant interaction instructions with redirect/finish validation,
+  preserved JSON extensions and redacted inspection/errors.
 - Add typed grant continuation data and separate continuation credentials, with
   URI/wait validation, preserved JSON extensions and redacted inspection/errors.
 - Add the issued access-token response type with typed access entries, expiry/URI

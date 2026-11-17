@@ -368,6 +368,22 @@ credentials, continuation URLs and extensions; explicit exports include them.
 These codecs perform no waiting, polling or network requests. Continuation timing
 and outgoing URL/header policy belong to the forthcoming grant operations.
 
+## Grant interaction response data
+
+`OpenPayments.Types.InteractionResponse.from_map/1` decodes the `interact` object
+in a pending grant response. Required `redirect` is an absolute URI; required
+`finish` is an opaque string used to secure the callback. Both retain their
+spelling, and additional JSON fields are preserved in `extensions`.
+
+The response's `finish` string is distinct from the request's
+`InteractionFinish` callback configuration, which contains `method`, `uri` and
+the caller's nonce. The response codec imposes no UUID or entropy checks on the
+server's string and does not open the consent URI or verify the callback hash.
+
+Use `validate/1` after modifying the struct. `to_map/1` and JSON encoding export
+the protocol values; inspection hides redirect, finish and extension data.
+Complete grant-response composition and callback verification remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:
