@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed grant client display information with optional-field validation,
+  strict field names and JSON encoding.
 - Add authenticated client construction with explicit key imports or validated
   existing keys, shared wallet identity policies and internal per-call signing.
 - Add unsigned public incoming-payment reads from full resource URLs, with typed

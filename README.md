@@ -98,6 +98,19 @@ per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior; signed dispatch is an internal building block for the
 upcoming grant, token and authenticated resource operations.
 
+## Grant client display information
+
+`OpenPayments.Types.ClientDisplay.from_map/1` decodes optional `name`, `uri` and
+`logo_uri` fields for the grant client's display information. All fields may be
+omitted, including for an empty display object. Explicit JSON nulls and extra
+fields are rejected. `validate/1` checks manually modified structs; `to_map/1`
+and JSON encoding omit nil fields and preserve the protocol name `logo_uri`.
+
+URI values are preserved and follow the schema's absolute-URI format, including
+`data:` image URIs. This self-asserted information is not verified by the SDK and
+no URI is fetched. Grant client-identity composition and request operations are
+the next increments; this type does not change client-constructor options.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:
