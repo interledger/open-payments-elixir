@@ -25,6 +25,12 @@ defmodule OpenPayments.Types.Validation do
 
   def absolute_uri?(_value), do: false
 
+  @spec incoming_payment_uri?(term()) :: boolean()
+  def incoming_payment_uri?(value),
+    do:
+      absolute_uri?(value) and
+        Regex.match?(~r/\A(https|http):\/\/(.+)\/incoming-payments\/(.+)\z/, value)
+
   @spec date_time?(term()) :: boolean()
   def date_time?(value) when is_binary(value) do
     pattern =

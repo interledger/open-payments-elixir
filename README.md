@@ -192,6 +192,29 @@ describe individual permission entries; they do not obtain grants or authorize
 requests. Outgoing access, access-array validation and complete grant requests
 remain under development.
 
+Outgoing-payment limits are described by `OpenPayments.Types.OutgoingLimits`:
+
+```elixir
+{:ok, limits} = OpenPayments.Types.OutgoingLimits.from_map(%{
+  "receiver" => "https://wallet.example.com/tenant/incoming-payments/payment-1",
+  "interval" => "R12/2019-08-24T14:15:22Z/P1M",
+  "debitAmount" => %{"value" => "500", "assetCode" => "USD", "assetScale" => 2}
+})
+```
+
+An empty object or limits without an amount are allowed. `debit_amount` and
+`receive_amount` become typed `Amount` structs; at most one may be supplied.
+This exclusivity follows Node's grant-request validation in addition to the
+schema's permissive `anyOf` branches. Amount fields are validated whenever
+present. Optional-field omission becomes nil; explicit JSON null is rejected.
+
+Receivers follow the schema's absolute-URI format and HTTP(S) incoming-payment
+URL pattern, with tenant paths and opaque identifiers preserved. Intervals follow
+the schema's string constraint; their recurrence syntax is not parsed or
+calculated. Additional JSON fields remain in `extensions`. The type provides
+`from_map/1`, `validate/1`, `to_map/1` and JSON encoding, without network requests or
+spending tracking. Inspection omits amount and extension metadata.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:

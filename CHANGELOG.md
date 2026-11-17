@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed outgoing-payment grant limits with exclusive debit/receive amounts,
+  receiver validation, preserved interval/extension data and JSON codecs.
 - Add incoming-payment and quote grant-access types with unique action validation,
   optional incoming identifiers, strict union fields and JSON codecs.
 - Add typed grant interaction requests and finish callbacks with nested validation,
