@@ -337,8 +337,36 @@ those concerns belong to token use and management operations.
 
 Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
 export protocol values, including the token and nested card results. Inspection
-shows only expiry metadata; errors retain safe field paths. Continuation credentials,
-complete grant-response models and signed grant/token operations remain under development.
+shows only expiry metadata; errors retain safe field paths. Complete grant-response
+models and signed grant/token operations remain under development.
+
+## Grant continuation data
+
+`OpenPayments.Types.Continuation.from_map/1` decodes the `continue` object in a
+grant response:
+
+```elixir
+{:ok, continuation} = OpenPayments.Types.Continuation.from_map(%{
+  "access_token" => %{"value" => "example-continuation-token"},
+  "uri" => "https://auth.example.com/tenant/continue/opaque-id",
+  "wait" => 30
+})
+
+continuation.wait
+# => 30
+```
+
+The required `access_token` becomes an `OpenPayments.Types.ContinuationToken`,
+which is separate from an issued resource `AccessToken`. Its required `value` is
+an opaque string. Required `uri` is an absolute URI whose spelling is preserved.
+Optional `wait` retains integer seconds as supplied; the schema declares no
+minimum or maximum. Omission becomes nil and explicit null is rejected. JSON
+extensions are preserved at both object levels.
+
+Both types support `validate/1`, `to_map/1` and JSON encoding. Inspection hides
+credentials, continuation URLs and extensions; explicit exports include them.
+These codecs perform no waiting, polling or network requests. Continuation timing
+and outgoing URL/header policy belong to the forthcoming grant operations.
 
 ## Public incoming payments
 

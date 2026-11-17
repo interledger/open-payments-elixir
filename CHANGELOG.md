@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed grant continuation data and separate continuation credentials, with
+  URI/wait validation, preserved JSON extensions and redacted inspection/errors.
 - Add the issued access-token response type with typed access entries, expiry/URI
   validation, strict fields, JSON codecs and redacted inspection/errors.
 - Add complete grant-request and access-token-request types with typed composition,
