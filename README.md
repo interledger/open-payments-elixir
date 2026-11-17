@@ -65,6 +65,20 @@ key selection or signature verification. Empty key sets and duplicate key IDs
 follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
 indexed validation paths such as `keys[1].d` for a rejected private key field.
 
+## ILP payment methods
+
+`OpenPayments.Types.ILPPaymentMethod.from_map/1` decodes an incoming payment's
+`{"type":"ilp","ilpAddress":...,"sharedSecret":...}` method into a struct with
+`type`, `ilp_address` and `shared_secret` fields. It validates the shared schema's
+ILP address syntax and 1023-character limit, nonempty unpadded base64url secret
+alphabet, and prohibition on additional fields. It does not impose a decoded
+secret length or establish a STREAM connection.
+
+Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly include
+it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
+after manually constructing or modifying a struct. The incoming-payment HTTP APIs
+are still being implemented.
+
 ## Amounts
 
 Amounts retain integer values as decimal strings, with explicit asset codes and

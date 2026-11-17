@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the typed ILP payment method with schema validation, explicit JSON codecs
+  and shared-secret redaction in inspection and validation errors.
 - Add unsigned wallet JWKS discovery with URL/payment-pointer resolution, typed
   public keys, indexed response validation and operation-specific errors.
 - Add public client construction and unsigned wallet discovery from URLs or payment
