@@ -65,7 +65,30 @@ key selection or signature verification. Empty key sets and duplicate key IDs
 follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
 indexed validation paths such as `keys[1].d` for a rejected private key field.
 
-## Public incoming-payment data
+## Public incoming payments
+
+Read the public state of an incoming payment using its complete resource URL:
+
+```elixir
+{:ok, client} = OpenPayments.Client.new_public()
+{:ok, payment} =
+  OpenPayments.IncomingPayment.get_public(
+    client,
+    "https://wallet.example.com/tenant/incoming-payments/payment-1"
+  )
+
+payment.completed
+payment.received_amount.value
+```
+
+This unsigned GET sends no access token or signature and returns
+`{:ok, %OpenPayments.Types.PublicIncomingPayment{}}` or `{:error, %OpenPayments.Error{}}`.
+Supply the full payment URL; payment pointers are wallet identifiers. Resource
+paths and queries are preserved, HTTPS ports are allowed, and HTTP requires the
+client's explicit development opt-in. The SDK does not append a resource path,
+cache results, follow redirects or retry requests. Errors identify
+`operation: :get_public_incoming_payment` and distinguish HTTP, decoding,
+validation, configuration and transport failures.
 
 `OpenPayments.Types.PublicIncomingPayment.from_map/1` validates the pinned
 `incoming-payment-without-access-token` response. Its required fields are `id`,
@@ -85,8 +108,9 @@ not compare amounts, assets or expiration times, or authorize URI request target
 `validate/1` checks manually modified structs, and `to_map/1`/JSON encoding export
 protocol fields, including ILP shared secrets. Inspection omits methods and
 extensions. Validation errors use paths such as `received_amount.value` and
-`methods[0].shared_secret`, without retaining rejected values. The public
-incoming-payment HTTP read is the next increment.
+`methods[0].shared_secret`, without retaining rejected values. Public reads use
+this current schema; authenticated incoming-payment operations are still being
+implemented.
 
 ## ILP payment methods
 
@@ -99,8 +123,8 @@ secret length or establish a STREAM connection.
 
 Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly include
 it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
-after manually constructing or modifying a struct. The incoming-payment HTTP APIs
-are still being implemented.
+after manually constructing or modifying a struct. Authenticated incoming-payment
+HTTP APIs are still being implemented.
 
 ## Amounts
 

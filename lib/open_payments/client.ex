@@ -3,8 +3,9 @@ defmodule OpenPayments.Client do
   Immutable configuration for Open Payments operations.
 
   `new_public/1` constructs a client without keys or tokens and makes no requests.
-  Use it with `OpenPayments.WalletAddress.get/2` or
-  `OpenPayments.WalletAddress.get_keys/2` for public discovery.
+  Use it with `OpenPayments.WalletAddress.get/2`,
+  `OpenPayments.WalletAddress.get_keys/2`, or
+  `OpenPayments.IncomingPayment.get_public/2` for public reads.
   """
 
   alias OpenPayments.{Error, Request, Response, Transport}
