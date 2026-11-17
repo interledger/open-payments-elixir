@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed grant client identities for wallet strings, wallet objects and
+  directed public JWKs, with optional display metadata and exact JSON round trips.
 - Add typed grant client display information with optional-field validation,
   strict field names and JSON encoding.
 - Add authenticated client construction with explicit key imports or validated

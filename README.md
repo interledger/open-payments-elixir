@@ -98,6 +98,30 @@ per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior; signed dispatch is an internal building block for the
 upcoming grant, token and authenticated resource operations.
 
+## Grant client identities
+
+`OpenPayments.Types.GrantClient.from_value/1` decodes a grant's client identity
+from a `walletAddress` object, a public `jwk` object, or the deprecated wallet URI
+string. Object forms support a typed optional `ClientDisplay`. Exactly one
+identity is required; extra object fields and explicit null displays are rejected.
+
+```elixir
+{:ok, identity} = OpenPayments.Types.GrantClient.from_value(%{
+  "walletAddress" => "https://wallet.example.com/alice",
+  "display" => %{"name" => "Example client"}
+})
+
+OpenPayments.Types.GrantClient.to_value(identity)
+```
+
+`to_value/1` and JSON encoding preserve the supplied string/object form and wire
+field names. URI values retain their spelling; this data codec does not resolve
+payment pointers or fetch keys. Directed identities contain validated public JWK
+structs and reject private key material. Inspection omits nested JWK/display data.
+Use `validate/1` after modifying a struct. Matching a directed JWK to the signing
+key and enforcing its non-interactive-grant restriction belong to the upcoming
+grant-request layer; this type makes no requests or changes to client configuration.
+
 ## Grant client display information
 
 `OpenPayments.Types.ClientDisplay.from_map/1` decodes optional `name`, `uri` and
@@ -108,8 +132,9 @@ and JSON encoding omit nil fields and preserve the protocol name `logo_uri`.
 
 URI values are preserved and follow the schema's absolute-URI format, including
 `data:` image URIs. This self-asserted information is not verified by the SDK and
-no URI is fetched. Grant client-identity composition and request operations are
-the next increments; this type does not change client-constructor options.
+no URI is fetched. `GrantClient` composes this metadata with either object identity.
+Grant request assembly and HTTP operations remain under development; display
+metadata does not change client-constructor options.
 
 ## Public incoming payments
 
