@@ -167,6 +167,31 @@ include them. Data validation checks nonce strings without assessing randomness.
 The types do not generate nonces, open consent pages, verify callback hashes or
 continue grants. Those operations remain under development.
 
+## Grant access permissions
+
+`OpenPayments.Types.AccessIncoming` describes incoming-payment permissions:
+
+```elixir
+{:ok, access} = OpenPayments.Types.AccessIncoming.from_map(%{
+  "type" => "incoming-payment",
+  "actions" => ["create", "read"],
+  "identifier" => "https://wallet.example.com/alice"
+})
+```
+
+Its allowed actions are `create`, `complete`, `read`, `read-all`, `list` and
+`list-all`. `OpenPayments.Types.AccessQuote` uses type `quote` and permits
+`create`, `read` and `read-all`. Both types require unique action strings, preserve
+their order and allow an empty actions array. Incoming identifiers are optional;
+explicit null is invalid and URI spelling is preserved without request-target
+restrictions. Quote entries do not accept an identifier.
+
+Both types validate the enclosing `access-item` union, which forbids extra fields.
+They provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding. These codecs
+describe individual permission entries; they do not obtain grants or authorize
+requests. Outgoing access, access-array validation and complete grant requests
+remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:

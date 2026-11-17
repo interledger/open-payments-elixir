@@ -7,6 +7,12 @@ defmodule OpenPayments.Types.Validation do
   @spec asset_scale?(term()) :: boolean()
   def asset_scale?(value), do: is_integer(value) and value in 0..255
 
+  @spec unique_enum_array?(term(), [String.t()]) :: boolean()
+  def unique_enum_array?(values, allowed) when is_list(values),
+    do: Enum.all?(values, &(&1 in allowed)) and length(Enum.uniq(values)) == length(values)
+
+  def unique_enum_array?(_values, _allowed), do: false
+
   @spec absolute_uri?(term()) :: boolean()
   def absolute_uri?(value) when is_binary(value) do
     if Regex.match?(~r/\A[\x21-\x7E]+\z/, value) and

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add incoming-payment and quote grant-access types with unique action validation,
+  optional incoming identifiers, strict union fields and JSON codecs.
 - Add typed grant interaction requests and finish callbacks with nested validation,
   extension preservation, JSON codecs and nonce-safe inspection/errors.
 - Add typed grant client identities for wallet strings, wallet objects and
