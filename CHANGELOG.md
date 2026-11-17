@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the public incoming-payment response type with nested amounts and methods,
+  RFC 3339 validation, preserved extensions and safe inspection/error paths.
 - Add the typed ILP payment method with schema validation, explicit JSON codecs
   and shared-secret redaction in inspection and validation errors.
 - Add unsigned wallet JWKS discovery with URL/payment-pointer resolution, typed

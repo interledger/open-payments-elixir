@@ -65,6 +65,29 @@ key selection or signature verification. Empty key sets and duplicate key IDs
 follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
 indexed validation paths such as `keys[1].d` for a rejected private key field.
 
+## Public incoming-payment data
+
+`OpenPayments.Types.PublicIncomingPayment.from_map/1` validates the pinned
+`incoming-payment-without-access-token` response. Its required fields are `id`,
+`completed`, `received_amount`, `created_at`, `methods` and `auth_server`; amounts
+and ILP payment methods are typed structs. Optional `incoming_amount` and
+`expires_at` become nil when omitted. Explicit JSON nulls are rejected. Empty
+method lists are allowed; duplicate method objects are rejected. Additional JSON
+fields remain in `extensions`.
+
+URI and [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.txt) timestamp strings
+retain their original spelling, offsets and fractional precision. Timestamp
+validation checks calendar/clock bounds and leap-second placement at the final
+UTC minute of a month, without verifying a historical leap-second table. It
+preserves the unknown-local-offset notation `-00:00`. This data validation does
+not compare amounts, assets or expiration times, or authorize URI request targets.
+
+`validate/1` checks manually modified structs, and `to_map/1`/JSON encoding export
+protocol fields, including ILP shared secrets. Inspection omits methods and
+extensions. Validation errors use paths such as `received_amount.value` and
+`methods[0].shared_secret`, without retaining rejected values. The public
+incoming-payment HTTP read is the next increment.
+
 ## ILP payment methods
 
 `OpenPayments.Types.ILPPaymentMethod.from_map/1` decodes an incoming payment's
