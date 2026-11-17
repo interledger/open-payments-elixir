@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add unsigned wallet JWKS discovery with URL/payment-pointer resolution, typed
+  public keys, indexed response validation and operation-specific errors.
 - Add public client construction and unsigned wallet discovery from URLs or payment
   pointers, with typed responses, request policies and structured HTTP/decoding errors.
 - Add raw Req transport with finite timeouts, safe errors, and no automatic retries,

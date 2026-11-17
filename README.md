@@ -48,6 +48,23 @@ and recognized server error fields; invalid success JSON or wallet data returns 
 decoding error. Non-JSON error bodies are not copied into diagnostics. Inspection
 omits server descriptions/details; read those fields explicitly when needed.
 
+Fetch the wallet's public keys with the same client:
+
+```elixir
+{:ok, key_set} = OpenPayments.WalletAddress.get_keys(client, wallet.id)
+Enum.map(key_set.keys, & &1.kid)
+```
+
+`get_keys/2` also accepts payment pointers and returns a validated
+`OpenPayments.Types.JWKS` containing typed public keys. It requests the wallet URL
+plus `/jwks.json`, reusing a trailing slash instead of adding a second one. This
+differs from Node's literal suffix concatenation; other path bytes are preserved.
+A root pointer resolves to `/.well-known/pay/jwks.json`. Supply the wallet address,
+rather than the complete JWKS endpoint. Each call fetches afresh without caching,
+key selection or signature verification. Empty key sets and duplicate key IDs
+follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
+indexed validation paths such as `keys[1].d` for a rejected private key field.
+
 ## Amounts
 
 Amounts retain integer values as decimal strings, with explicit asset codes and

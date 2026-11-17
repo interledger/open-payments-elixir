@@ -12,24 +12,43 @@ defmodule OpenPayments.WalletAddress do
   alias OpenPayments.{Client, Error, PaymentPointer}
   alias OpenPayments.Request.URL
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.{Validation, WalletAddress}
-
-  @operation :get_wallet_address
+  alias OpenPayments.Types.{JWKS, Validation, WalletAddress}
 
   @doc "Fetches and validates public wallet information without signing the request."
   @spec get(Client.t(), String.t()) :: {:ok, WalletAddress.t()} | {:error, Error.t()}
-  def get(client, address) do
+  def get(client, address),
+    do: fetch(client, address, :get_wallet_address, &WalletAddress.from_map/1)
+
+  @doc """
+  Fetches the public JWKS bound to a wallet URL or payment pointer.
+
+  Appends `jwks.json` to the resolved wallet URL, reusing an existing trailing
+  slash. Root payment pointers first resolve to `/.well-known/pay`. This operation
+  is unsigned, does not follow redirects or cache keys, and validates each public
+  key using the shared schema. Key selection and signature verification are
+  separate from discovery.
+  """
+  @spec get_keys(Client.t(), String.t()) :: {:ok, JWKS.t()} | {:error, Error.t()}
+  def get_keys(client, address),
+    do: fetch(client, address, :get_wallet_address_keys, &JWKS.from_map/1)
+
+  defp fetch(client, address, operation, decoder) do
     with {:ok, client} <- Client.validate(client),
          {:ok, url} <- resolve(address),
          {:ok, url} <- wallet_url(url, Client.allow_http?(client)),
-         {:ok, response} <- Client.request(client, :get, url),
-         {:ok, data} <- JSON.decode(response, [200], @operation),
-         {:ok, wallet} <- decode(data, response.status) do
-      {:ok, wallet}
+         {:ok, response} <- Client.request(client, :get, resource_url(url, operation)),
+         {:ok, data} <- JSON.decode(response, [200], operation),
+         {:ok, resource} <- decode(data, response.status, decoder) do
+      {:ok, resource}
     else
-      {:error, error} -> {:error, %{error | operation: @operation}}
+      {:error, error} -> {:error, %{error | operation: operation}}
     end
   end
+
+  defp resource_url(url, :get_wallet_address), do: url
+
+  defp resource_url(url, :get_wallet_address_keys),
+    do: url <> if(String.ends_with?(url, "/"), do: "jwks.json", else: "/jwks.json")
 
   defp resolve("$" <> _address = pointer), do: PaymentPointer.to_url(pointer)
   defp resolve(address), do: {:ok, address}
@@ -60,10 +79,10 @@ defmodule OpenPayments.WalletAddress do
     end
   end
 
-  defp decode(data, status) do
-    case WalletAddress.from_map(data) do
-      {:ok, wallet} ->
-        {:ok, wallet}
+  defp decode(data, status, decoder) do
+    case decoder.(data) do
+      {:ok, resource} ->
+        {:ok, resource}
 
       {:error, error} ->
         {:error,
