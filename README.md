@@ -136,6 +136,37 @@ no URI is fetched. `GrantClient` composes this metadata with either object ident
 Grant request assembly and HTTP operations remain under development; display
 metadata does not change client-constructor options.
 
+## Grant interaction requests
+
+`OpenPayments.Types.InteractionRequest` describes the grant request's `interact`
+field, with a required `start` array and an optional typed `InteractionFinish`
+callback. For example, generate a fresh nonce for each grant request:
+
+```elixir
+nonce = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+
+{:ok, interaction} = OpenPayments.Types.InteractionRequest.from_map(%{
+  "start" => ["redirect"],
+  "finish" => %{
+    "method" => "redirect",
+    "uri" => "https://client.example.com/callback",
+    "nonce" => nonce
+  }
+})
+```
+
+Both start entries and the finish method must be `redirect`. The pinned schema
+does not require `start` to be nonempty or unique. Omitted `finish` becomes nil;
+explicit null is rejected. Callback URIs retain their spelling and follow the
+schema's absolute-URI format, independently of HTTP request-target policies.
+Additional JSON fields at both levels are preserved in `extensions`.
+
+Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding.
+Inspection and validation errors omit nonce values; explicit protocol exports
+include them. Data validation checks nonce strings without assessing randomness.
+The types do not generate nonces, open consent pages, verify callback hashes or
+continue grants. Those operations remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:

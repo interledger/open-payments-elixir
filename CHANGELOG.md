@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed grant interaction requests and finish callbacks with nested validation,
+  extension preservation, JSON codecs and nonce-safe inspection/errors.
 - Add typed grant client identities for wallet strings, wallet objects and
   directed public JWKs, with optional display metadata and exact JSON round trips.
 - Add typed grant client display information with optional-field validation,
