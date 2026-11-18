@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed authenticated incoming-payment reads with per-call string/typed tokens,
+  typed responses, amount-asset consistency checks and operation-specific errors.
 - Add the incoming-payment create request type with strict fields, typed optional
   amount, expiry/metadata validation, JSON codecs and safe inspection/errors.
 - Add the incoming-payment response with required typed ILP methods, protocol-object

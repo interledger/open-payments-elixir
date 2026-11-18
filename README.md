@@ -41,8 +41,8 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Grant and token-management operations are available; authenticated
-resource operations remain under development.
+followed. Grant/token management and authenticated incoming-payment reads are
+available; other authenticated resource operations remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -97,7 +97,8 @@ Construction makes no HTTP requests and does not check wallet/key registration.
 Client inspection omits the identity, key and custom headers. Access tokens remain
 per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
-`OpenPayments.Token.revoke/2` use signed dispatch; authenticated resource operations
+`OpenPayments.Token.revoke/2` use signed dispatch, as does
+`OpenPayments.IncomingPayment.get/3`. Other authenticated resource operations
 remain under development.
 
 ## Requesting a grant
@@ -720,8 +721,53 @@ not compare amounts, assets or expiration times, or authorize URI request target
 protocol fields, including ILP shared secrets. Inspection omits methods and
 extensions. Validation errors use paths such as `received_amount.value` and
 `methods[0].shared_secret`, without retaining rejected values. Public reads use
-this current schema; authenticated incoming-payment operations are still being
-implemented.
+this current schema; `IncomingPayment.get/3` reads authenticated details separately.
+
+## Authenticated incoming-payment reads
+
+Read the complete resource URL with an authenticated client and a per-call token:
+
+```elixir
+{:ok, payment} =
+  OpenPayments.IncomingPayment.get(client, incoming_payment_url,
+    access_token: issued_token
+  )
+
+payment.wallet_address
+payment.methods
+```
+
+`access_token` is required and accepts an opaque token string or an
+`OpenPayments.Types.AccessToken` struct. Typed tokens are revalidated before using
+their value; a typed continuation credential is rejected. Opaque strings follow
+Node's token input style, with token68 header validation. The server checks token
+role, permissions, expiry and key binding. The SDK does not infer permission from
+access metadata or track elapsed expiry. Unsupported or duplicate options fail
+before HTTP; per-call key/header overrides are not accepted.
+
+The operation signs a GET with GNAP authorization and no request body. Supply the
+full resource URL; no path is appended or inferred. HTTPS ports and queries are
+allowed, and HTTP requires explicit development opt-in on the client. Requests
+are not cached, redirected or automatically retried, and failures never trigger
+automatic token refresh. Public reads remain unsigned through `get_public/2`.
+
+HTTP 200 returns `{:ok, %OpenPayments.Types.IncomingPaymentWithMethods{}}`.
+Authenticated reads require the detailed response branch, including
+`walletAddress` and typed `methods`, although the shared GET schema also permits
+a public branch for unsigned reads. There is no fallback to public data in this
+operation. This is stricter context selection than Node's shared response validator.
+
+Following Node's authenticated payment check, a present `incomingAmount` must
+share the `receivedAmount` asset code and scale. Schema or asset inconsistencies
+return `kind: :decoding`, `code: "invalid_response"` and HTTP status 200; the field
+path identifies the invalid data without echoing values. Errors use
+`operation: :get_incoming_payment` and otherwise retain configuration, validation,
+signing, HTTP or transport kinds. Amount values, timestamps, the requested URL and
+token metadata are not compared for equality with the returned resource.
+
+Inspection hides shared secrets, metadata and extensions; explicit map/JSON
+exports include them. Creation, completion and listing remain under development.
+Live signed-provider testing remains pending.
 
 ## Detailed incoming-payment data
 
@@ -763,7 +809,8 @@ forthcoming operations.
 Payment methods are not declared by this detailed schema, so any `methods` field
 is retained as an uninterpreted extension. Use `Types.IncomingPaymentWithMethods`
 for the authenticated read/create schema, which additionally requires typed
-payment methods. Authenticated incoming-payment HTTP operations remain under development.
+payment methods. `IncomingPayment.get/3` uses that variant for authenticated reads;
+creation, completion and listing remain under development.
 
 ## Incoming-payment data with payment methods
 
@@ -785,8 +832,8 @@ manual changes. `to_map/1` and JSON encoding include shared secrets, metadata an
 extensions; inspection omits those values. URI/timestamp spelling and optional
 field rules follow the detailed type. The codec makes no requests, connects to
 no payment method and performs no asset/amount/time consistency checks.
-`Types.CreateIncomingPayment` models the create payload. Authenticated
-incoming-payment operations remain under development.
+`Types.CreateIncomingPayment` models the create payload. `IncomingPayment.get/3`
+returns this response type; creation, completion and listing remain under development.
 
 ## Incoming-payment create request data
 
@@ -820,7 +867,7 @@ needs wallet/operation context and is outside this standalone codec.
 Use `validate/1` after manual changes. `to_map/1` and JSON encoding export protocol
 fields without validating. Inspection exposes only expiry metadata; errors retain
 safe paths such as `incoming_amount.asset_scale` without rejected values. The type
-makes no requests. Authenticated incoming-payment HTTP operations remain under development.
+makes no requests. The incoming-payment creation operation remains under development.
 
 ## ILP payment methods
 
@@ -833,8 +880,8 @@ secret length or establish a STREAM connection.
 
 Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly include
 it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
-after manually constructing or modifying a struct. Authenticated incoming-payment
-HTTP APIs are still being implemented.
+after manually constructing or modifying a struct. `IncomingPayment.get/3` returns
+typed methods; incoming-payment creation, completion and listing remain under development.
 
 ## Amounts
 
@@ -1087,7 +1134,8 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery; authenticated resources remain to be implemented.
+public client and wallet discovery, plus authenticated incoming-payment reads;
+other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.
 It has no automatic retries, redirects, request re-encoding, response decoding,

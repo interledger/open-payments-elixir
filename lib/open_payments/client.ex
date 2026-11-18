@@ -12,11 +12,13 @@ defmodule OpenPayments.Client do
   and `OpenPayments.Grant.cancel/2` for signed grant operations.
   `OpenPayments.Token.rotate/2` and `OpenPayments.Token.revoke/2` manage issued
   access tokens.
+  `OpenPayments.IncomingPayment.get/3` reads authenticated incoming-payment data.
   Existing public operations remain unsigned with either client type.
   """
 
   alias OpenPayments.{Error, Key, Request, Response, Transport}
   alias OpenPayments.Request.Headers
+  alias OpenPayments.Types.AccessToken
   alias OpenPayments.WalletAddress.URL
 
   @derive {Inspect, only: [:allow_http]}
@@ -79,7 +81,8 @@ defmodule OpenPayments.Client do
   are not stored on the client. Grants use `OpenPayments.Grant.request/3` and
   `OpenPayments.Grant.continue/2`, with `OpenPayments.Grant.cancel/2` for cancellation;
   Token management uses `OpenPayments.Token.rotate/2` and `OpenPayments.Token.revoke/2`.
-  Authenticated resource operations remain under development.
+  Authenticated incoming-payment reads use `OpenPayments.IncomingPayment.get/3`;
+  other authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}
   def new_authenticated(opts) do
@@ -120,6 +123,58 @@ defmodule OpenPayments.Client do
   def signing_public_jwk(%__MODULE__{key: key}) do
     with {:ok, key} <- Key.validate(key), do: {:ok, Key.public_jwk(key)}
   end
+
+  @doc false
+  @spec resource_access_token(keyword()) :: {:ok, String.t()} | {:error, Error.t()}
+  def resource_access_token(opts) when is_list(opts) do
+    if Keyword.keyword?(opts) and length(Enum.uniq(Keyword.keys(opts))) == length(opts) and
+         Enum.all?(Keyword.keys(opts), &(&1 == :access_token)) do
+      resource_token(Keyword.get(opts, :access_token))
+    else
+      invalid_resource(:options, "must be a keyword list with only one access_token option")
+    end
+  end
+
+  def resource_access_token(_opts),
+    do: invalid_resource(:options, "must be a keyword list with an access_token option")
+
+  defp resource_token(%AccessToken{} = token) do
+    case AccessToken.validate(token) do
+      :ok ->
+        {:ok, token.value}
+
+      {:error, error} ->
+        errors =
+          Enum.map(error.validation_errors, fn %{field: field} = issue ->
+            %{
+              issue
+              | field:
+                  if(field == :access_token, do: :access_token, else: "access_token.#{field}")
+            }
+          end)
+
+        {:error,
+         %{
+           error
+           | description: "Invalid Open Payments resource access token",
+             validation_errors: errors
+         }}
+    end
+  end
+
+  defp resource_token(token) when is_binary(token), do: {:ok, token}
+
+  defp resource_token(_token),
+    do: invalid_resource(:access_token, "must be a token string or AccessToken struct")
+
+  defp invalid_resource(field, message),
+    do:
+      {:error,
+       %Error{
+         kind: :validation,
+         description: "Invalid Open Payments resource request options",
+         validation_errors: [%{field: field, message: message}]
+       }}
 
   @doc false
   @spec request(t(), atom(), String.t(), keyword()) :: {:ok, Response.t()} | {:error, Error.t()}
