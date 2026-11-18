@@ -904,8 +904,9 @@ Call `validate/1` after constructing or modifying a struct. `to_map/1` and JSON
 encoding export integer counts and raw cursors without validating or percent
 encoding. Inspection shows only counts; explicit exports include cursors, and
 errors retain safe field paths without rejected values. This type makes no
-requests or automatic page traversal. Typed list results and signed list
-operations remain under development.
+requests or automatic page traversal. Incoming-payment pages use
+`Types.IncomingPaymentPaginationResult` below; signed list operations remain
+under development.
 
 ## Pagination metadata
 
@@ -935,8 +936,47 @@ Use `validate/1` after modifying a struct. `to_map/1` and JSON encoding export t
 protocol fields without validating. Inspection exposes only the flags; explicit
 exports include cursors. Errors retain safe field paths without rejected values.
 This type makes no requests or automatic page traversal. Query arguments use
-`Types.Pagination` above; typed list results and signed list operations remain
-under development.
+`Types.Pagination` above; incoming-payment pages use the result type below.
+Signed list operations remain under development.
+
+## Incoming-payment page data
+
+`OpenPayments.Types.IncomingPaymentPaginationResult` decodes a page into typed
+`PageInfo` metadata and an ordered list of detailed `IncomingPayment` structs:
+
+```elixir
+{:ok, page} = OpenPayments.Types.IncomingPaymentPaginationResult.from_map(%{
+  "pagination" => %{"hasNextPage" => false, "hasPreviousPage" => false},
+  "result" => []
+})
+
+page.pagination.has_next_page
+page.result
+```
+
+Both `pagination` and `result` are required and cannot be null. Empty result lists
+are valid. Requiring both fields matches Node's public `PaginationResult` type;
+the pinned list response schema declares the fields without a `required` array,
+so this SDK contract is explicitly stricter. Missing fields are never defaulted.
+
+Items follow the combined detailed-field restriction used by completion:
+`methods`, `authServer` and other unknown item fields are rejected. This is the
+same documented interpretation of `additionalProperties: false` beside an
+`allOf` reference; the standalone detailed codec still preserves extensions.
+Metadata and permitted nested amount extensions remain arbitrary JSON. The page
+wrapper itself preserves extra JSON fields in `extensions`, as its schema permits.
+
+Order and duplicates are preserved. Completed and incomplete items are valid;
+the codec does not compare assets, amounts, timestamps, page flags/cursors, item
+counts or IDs. Resource operations apply payment consistency checks separately.
+Errors use safe indexed paths such as `result[1].received_amount.value` or
+`pagination.end_cursor`, without retaining rejected values or unknown field names.
+
+`validate/1` revalidates typed metadata, every typed item and extension data after
+manual changes. `to_map/1` and JSON encoding export protocol fields without
+validation. Inspection hides the full payload; explicit exports include cursors,
+metadata and wrapper extensions. This type makes no requests or automatic page
+traversal. The signed list operation remains under development.
 
 ## Detailed incoming-payment data
 
