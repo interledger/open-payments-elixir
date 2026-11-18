@@ -98,10 +98,10 @@ Client inspection omits the identity, key and custom headers. Access tokens rema
 per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as do
-`OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4` and
-`OpenPayments.IncomingPayment.complete/3` and `OpenPayments.IncomingPayment.list/4`.
-Other authenticated resource operations
-remain under development.
+`OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4`,
+`OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`
+and `OpenPayments.Quote.get/3`. Other authenticated resource operations remain
+under development.
 
 ## Requesting a grant
 
@@ -932,6 +932,46 @@ item fields; methods are excluded. Other amount/time/identity/page-size comparis
 are not inferred. Explicit exports include cursors, metadata and wrapper extensions;
 inspection omits the page payload. Live signed-provider testing remains pending.
 
+## Reading quotes
+
+Read a quote using an authenticated client and an access token authorized to
+read that resource:
+
+```elixir
+{:ok, quote} =
+  OpenPayments.Quote.get(client, quote_url,
+    access_token: issued_token
+  )
+
+quote.debit_amount
+quote.receive_amount
+```
+
+Supply the complete quote URL. No path is appended or inferred; opaque paths,
+queries and nondefault HTTPS ports are preserved under the existing request URL
+rules. HTTP requires explicit development opt-in. The operation signs a GET with
+GNAP authorization, no body and no content headers. There is no wallet, JWKS or
+receiver lookup, caching, redirect, retry or automatic token refresh.
+
+The required `access_token` option accepts an opaque token string or typed
+`Types.AccessToken`. Typed tokens are revalidated and token68 header rules apply;
+typed continuation credentials and unsupported/duplicate options are rejected.
+Per-call key/header overrides are invalid. The server checks permissions, expiry
+and key binding; the SDK does not infer authorization from token metadata.
+
+HTTP 200 returns `{:ok, %OpenPayments.Types.Quote{}}` with both typed amounts.
+Following Node's quote read, only response shape is validated: different assets,
+zero values and the schema's plain string expiry remain permitted. No FX/fee,
+value-order, clock or request/response identity comparison is added. Strict
+fields and the documented standalone-example discrepancies follow the quote
+codec below. Schema failures return `kind: :decoding`, `code: "invalid_response"`,
+status 200 and safe paths such as `receive_amount.asset_scale`. Errors carry
+`operation: :get_quote`; HTTP and transport failures retain their own kinds.
+
+Inspection omits wallet, receiver, amounts and expiry; explicit map/JSON exports
+include them. Quote creation remains under development. Live signed-provider
+testing remains pending.
+
 ## Quote response data
 
 `OpenPayments.Types.Quote` models the strict quote response used by GET and create:
@@ -978,8 +1018,9 @@ structs and both nested amounts; `to_map/1` and JSON encoding export protocol da
 without validating. Inspection shows only ID, method and creation time; explicit
 exports include wallet, receiver, amounts and expiry. Errors retain safe paths
 such as `receive_amount.asset_scale`, without rejected values or unknown names.
-This type makes no requests or payments. Creation payloads use `Types.CreateQuote`
-below; signed GET/create operations remain under development.
+This type makes no requests or payments. `Quote.get/3` returns it after a signed
+read. Creation payloads use `Types.CreateQuote` below; signed creation remains
+under development.
 
 ## Quote creation request data
 
@@ -1024,7 +1065,8 @@ variant and nested amount. `to_map/1` and JSON encoding export protocol fields
 without validating. Inspection shows only the method; explicit exports include
 wallet, receiver and amount data. Errors retain safe paths such as
 `debit_amount.value` without rejected values or unknown names. This type makes
-no HTTP requests. Signed quote GET/create operations remain under development.
+no HTTP requests. Signed reads use `Quote.get/3`; quote creation remains under
+development.
 
 ## Pagination query arguments
 
@@ -1501,7 +1543,7 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, plus incoming-payment reads, creation, completion and listing;
+public client and wallet discovery, incoming-payment operations and quote reads;
 other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

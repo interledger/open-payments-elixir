@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed quote reads with per-call raw/typed tokens, strict typed responses,
+  operation-specific errors and no automatic replay.
 - Add quote creation payloads for fixed-debit, fixed-receive and receiver-inferred
   amounts with strict variants, nested validation, JSON codecs and safe inspection.
 - Add the strict quote response type with typed debit/receive amounts, schema-specific
