@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the standalone outgoing-grant spent-amount response with required nullable
+  typed amounts, preserved JSON extensions, safe inspection and explicit null exports.
 - Add signed outgoing-payment listing with typed pages, per-item Node consistency
   checks and shared collection query/token handling for both payment resources.
 - Add typed outgoing-payment pages with pagination metadata, strict ordered

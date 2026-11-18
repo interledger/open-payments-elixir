@@ -1328,6 +1328,45 @@ track grant spending, or make requests/payments. `OutgoingPayment.create/4` retu
 this type; `OutgoingPayment.get/3` reads existing payments into the separate
 detailed type.
 
+## Outgoing-grant spent-amount data
+
+`OpenPayments.Types.OutgoingPaymentGrantSpentAmounts` models the standalone
+grant-spent endpoint's response:
+
+```elixir
+{:ok, spent} = OpenPayments.Types.OutgoingPaymentGrantSpentAmounts.from_map(%{
+  "spentReceiveAmount" => nil,
+  "spentDebitAmount" => %{"value" => "2500", "assetCode" => "USD", "assetScale" => 2}
+})
+
+spent.spent_receive_amount # nil represents explicit JSON null
+spent.spent_debit_amount
+:ok = OpenPayments.Types.OutgoingPaymentGrantSpentAmounts.validate(spent)
+```
+
+Both protocol fields are required, matching the pinned schema and Node's response
+type. Each independently accepts a typed `Amount` or null; missing fields are
+invalid. In typed structs both fields must be supplied, and nil means explicit
+null. Both fields are always exported, including nulls. This differs from the
+optional, nonnullable `grantSpentReceiveAmount` and `grantSpentDebitAmount` on
+outgoing-payment creation responses.
+
+Null remains distinct from a zero-valued amount. The codec does not infer grant
+existence, budget, interval boundaries or remaining funds, compare assets/values,
+or replace null with zero. For a recurring grant the server reports the current
+interval's spending for the presented token. No grant state is tracked locally.
+
+Amount decimal spelling, asset data and permitted nested extensions are retained.
+Additional JSON fields at the response root remain uninterpreted `extensions`;
+they cannot override the two declared fields. `validate/1` revalidates nullable
+typed children and extensions. `to_map/1` and JSON encoding export without
+validation and retain required nulls.
+
+Inspection hides the entire payload. Explicit exports include amounts and
+extensions; errors retain safe paths such as `spent_debit_amount.value`, without
+rejected values or unknown names. This type makes no requests or payments. The
+standalone grant-spent HTTP operation remains under development.
+
 ## Quote response data
 
 `OpenPayments.Types.Quote` models the strict quote response used by GET and create:
