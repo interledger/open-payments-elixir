@@ -140,8 +140,7 @@ valid initial response; nested errors retain safe field paths. Inspecting the
 response hides tokens, callback values, subject identifiers and card results;
 explicit map/JSON exports include them. Grant initiation does not open consent,
 verify callbacks, poll, continue/cancel grants or compare granted/requested access.
-Cancellation remains under development. Local signed
-wire checks pass; live signed-provider compatibility remains a release check.
+Local signed wire checks pass; live signed-provider compatibility remains a release check.
 
 ## Continuing a grant
 
@@ -179,6 +178,32 @@ development. Use the returned `continued.continue` for a subsequent call, includ
 any changed URI or credential. Tokens remain per-call data when sharing a client
 between processes. Redirects and automatic retries are disabled, including after
 transport failures. Live signed-provider compatibility remains a release check.
+
+## Cancelling a grant
+
+Use the typed `continue` object from the latest response with the authenticated
+client holding the same signing key used for initiation:
+
+```elixir
+:ok = OpenPayments.Grant.cancel(client, continued.continue)
+```
+
+This sends one signed DELETE to the supplied continuation URI using its
+`Authorization: GNAP ...` credential, with no body or appended path. Authorization
+is covered by the signature, and the usual outgoing URL/token68 policies apply.
+Typed continuation data is revalidated; an issued resource access token cannot
+replace the continuation credential.
+
+HTTP 204 returns `:ok` without JSON parsing or content decoding. Other success
+statuses return an `unexpected_status` decoding error. HTTP errors retain the
+status and recognized server fields; transport failures retain their existing
+error kinds. All errors use `operation: :cancel_grant`. Redirects and automatic
+retries are disabled, including after ambiguous connection failures.
+
+The SDK stores no grant state or credentials and leaves the supplied structs
+unchanged. The server checks key binding and determines the cancellation's effect.
+Resource-token revocation uses the token-management API, which remains under
+development. Callback verification and live signed-provider checks also remain pending.
 
 ## Grant client identities
 

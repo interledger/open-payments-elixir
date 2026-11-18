@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed grant cancellation using typed continuation credentials, HTTP 204
+  acknowledgement, shared no-content response handling and operation-specific errors.
 - Add signed grant continuation with typed credentials, optional JSON/body omission,
   typed result variants, per-call token handling and operation-specific errors.
 - Add signed grant initiation with default wallet identification, explicit typed/JSON

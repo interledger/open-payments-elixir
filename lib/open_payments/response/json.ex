@@ -12,6 +12,17 @@ defmodule OpenPayments.Response.JSON do
     end
   end
 
+  # Like Node's DELETE requestor, successful no-content operations use the status
+  # without interpreting a response body or content coding.
+  @spec expect_no_content(Response.t(), [integer()], atom()) :: :ok | {:error, Error.t()}
+  def expect_no_content(%Response{} = response, success_statuses, operation) do
+    cond do
+      response.status in success_statuses -> :ok
+      response.status in 200..299 -> decoding_error(response, operation, "unexpected_status")
+      true -> http_error(response, operation)
+    end
+  end
+
   defp decode_success(response, operation) do
     encoding = for {"content-encoding", value} <- response.headers, do: String.downcase(value)
 
@@ -60,6 +71,10 @@ defmodule OpenPayments.Response.JSON do
          status: response.status,
          code: code,
          operation: operation,
-         description: "Invalid Open Payments JSON response"
+         description:
+           if(code == "unexpected_status",
+             do: "Unexpected Open Payments response status",
+             else: "Invalid Open Payments JSON response"
+           )
        }}
 end

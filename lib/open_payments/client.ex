@@ -8,8 +8,8 @@ defmodule OpenPayments.Client do
   `OpenPayments.IncomingPayment.get_public/2` for public reads.
 
   `new_authenticated/1` adds a wallet identity and an Ed25519 signing key.
-  Use it with `OpenPayments.Grant.request/3` and `OpenPayments.Grant.continue/2`
-  for signed grant initiation and continuation.
+  Use it with `OpenPayments.Grant.request/3`, `OpenPayments.Grant.continue/2`
+  and `OpenPayments.Grant.cancel/2` for signed grant operations.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -75,7 +75,7 @@ defmodule OpenPayments.Client do
   makes no network requests and does not verify registration of the public key.
   Public operations remain unsigned. Tokens belong to individual operations and
   are not stored on the client. Grants use `OpenPayments.Grant.request/3` and
-  `OpenPayments.Grant.continue/2`;
+  `OpenPayments.Grant.continue/2`, with `OpenPayments.Grant.cancel/2` for cancellation;
   token and authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}
