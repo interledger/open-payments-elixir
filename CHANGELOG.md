@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add quote creation payloads for fixed-debit, fixed-receive and receiver-inferred
+  amounts with strict variants, nested validation, JSON codecs and safe inspection.
 - Add the strict quote response type with typed debit/receive amounts, schema-specific
   URI/timestamp rules, JSON codecs and safe inspection/errors.
 - Add signed incoming-payment listing with typed/map pagination, Node-compatible

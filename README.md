@@ -978,8 +978,53 @@ structs and both nested amounts; `to_map/1` and JSON encoding export protocol da
 without validating. Inspection shows only ID, method and creation time; explicit
 exports include wallet, receiver, amounts and expiry. Errors retain safe paths
 such as `receive_amount.asset_scale`, without rejected values or unknown names.
-This type makes no requests or payments. Quote creation-request types and signed
-GET/create operations remain under development.
+This type makes no requests or payments. Creation payloads use `Types.CreateQuote`
+below; signed GET/create operations remain under development.
+
+## Quote creation request data
+
+`OpenPayments.Types.CreateQuote` models all three creation payload variants:
+
+```elixir
+{:ok, amount} = OpenPayments.Types.Amount.new("2500", wallet.asset_code, wallet.asset_scale)
+
+request = %OpenPayments.Types.CreateQuote{
+  wallet_address: wallet.id,
+  receiver: incoming_payment.id,
+  method: "ilp",
+  debit_amount: amount
+}
+
+:ok = OpenPayments.Types.CreateQuote.validate(request)
+```
+
+Required fields are `wallet_address`, `receiver` and the explicit method `"ilp"`.
+Use `debit_amount` for a fixed-debit quote, `receive_amount` for a fixed-receive
+quote, or omit both to infer the amount from the receiver's incoming payment.
+The server must check that an amountless receiver has an incoming amount; this
+codec makes no lookup or inference from the URL. Both amounts together are
+invalid, matching the shared specification's three closed `oneOf` branches and
+Node's `CreateQuoteArgs` union.
+
+`from_map/1` uses protocol fields `walletAddress`, `receiver`, `method`,
+`debitAmount` and `receiveAmount`. Omitted amounts become nil and are omitted on
+export; typed nil means omission, while explicit JSON null is invalid. Each
+present amount is a typed `Amount`, with its decimal spelling and permitted
+extensions retained. Top-level extras, metadata, response-only fields and
+snake-case JSON aliases are rejected. No method or amount defaults are supplied.
+
+The wallet uses the schema's absolute-URI data format and the receiver uses the
+HTTP(S) incoming-payment URI pattern, preserving spelling without discovery
+restrictions or payment-pointer conversion. Wallet/receiver asset compatibility,
+permissions and receiver-amount availability need server context. The codec
+does not require positive amounts or calculate exchange rates and fees.
+
+Call `validate/1` after constructing or modifying a struct; it revalidates the
+variant and nested amount. `to_map/1` and JSON encoding export protocol fields
+without validating. Inspection shows only the method; explicit exports include
+wallet, receiver and amount data. Errors retain safe paths such as
+`debit_amount.value` without rejected values or unknown names. This type makes
+no HTTP requests. Signed quote GET/create operations remain under development.
 
 ## Pagination query arguments
 
