@@ -10,6 +10,8 @@ defmodule OpenPayments.OutgoingPayment do
   request form and returns typed payment data with optional grant spent amounts.
   Listing signs a GET with wallet/pagination query arguments and returns one typed
   page, applying the same payment consistency rules to each item.
+  Grant-spent reads return the presented token's current grant/interval amounts
+  from the resource server, independently of any individual payment.
   """
 
   alias OpenPayments.{Client, Error}
@@ -19,6 +21,7 @@ defmodule OpenPayments.OutgoingPayment do
   alias OpenPayments.Types.{
     AccessToken,
     CreateOutgoingPayment,
+    OutgoingPaymentGrantSpentAmounts,
     OutgoingPaymentPaginationResult,
     OutgoingPaymentWithSpentAmounts,
     Pagination
@@ -29,6 +32,47 @@ defmodule OpenPayments.OutgoingPayment do
   @get_operation :get_outgoing_payment
   @create_operation :create_outgoing_payment
   @list_operation :list_outgoing_payments
+  @spent_operation :get_outgoing_payment_grant
+
+  @doc """
+  Reads the current outgoing-grant spent amounts with a signed bodyless GET.
+
+  Supply the resource-server base and required per-call access_token option
+  accepted by `get/3`, as a raw string or typed issued token. Appends
+  `/outgoing-payment-grant`, preserving tenant paths and trailing slashes. Base
+  queries, including an empty marker, are rejected. No wallet filter, grant ID or
+  pagination is sent. Request URL/token policies apply; no management URL is used.
+
+  HTTP 200 returns `OutgoingPaymentGrantSpentAmounts` with both required fields,
+  each typed Amount or nil for explicit null. Root/nested JSON extensions and
+  decimal spelling are preserved. The server selects the grant and current
+  recurring interval associated with the token. No asset/value/budget comparison,
+  interval computation, null-to-zero default, token expiry/permission inference
+  or grant-state conclusion is added, following Node's operation.
+
+  Schema failures return decoding/invalid_response/status200 with safe field
+  paths; all errors carry `:get_outgoing_payment_grant`. Inspection hides payloads;
+  explicit exports include amounts, extensions and both required nulls. This call
+  does not create payments, fetch related resources, cache, poll, refresh tokens,
+  follow redirects or retry. The caller supplies the current token on each call.
+  """
+  @spec get_grant_spent_amounts(Client.t(), String.t(), [
+          {:access_token, String.t() | AccessToken.t()}
+        ]) :: {:ok, OutgoingPaymentGrantSpentAmounts.t()} | {:error, Error.t()}
+  def get_grant_spent_amounts(client, base_url, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, token} <- Client.resource_access_token(opts),
+         {:ok, url} <-
+           URL.append_path(base_url, Client.allow_http?(client), "outgoing-payment-grant"),
+         {:ok, response} <- Client.request_signed(client, :get, url, access_token: token),
+         {:ok, data} <- JSON.decode(response, [200], @spent_operation),
+         {:ok, spent} <- decode_spent_amounts(data, response.status) do
+      {:ok, spent}
+    else
+      {:error, error} -> {:error, %{error | operation: @spent_operation}}
+    end
+  end
 
   @doc """
   Lists one page of outgoing payments using a signed GET.
@@ -190,6 +234,23 @@ defmodule OpenPayments.OutgoingPayment do
              status: status,
              code: "invalid_response",
              description: "Invalid Open Payments outgoing-payment response"
+         }}
+    end
+  end
+
+  defp decode_spent_amounts(data, status) do
+    case OutgoingPaymentGrantSpentAmounts.from_map(data) do
+      {:ok, spent} ->
+        {:ok, spent}
+
+      {:error, error} ->
+        {:error,
+         %{
+           error
+           | kind: :decoding,
+             status: status,
+             code: "invalid_response",
+             description: "Invalid Open Payments outgoing-payment grant spent-amount response"
          }}
     end
   end

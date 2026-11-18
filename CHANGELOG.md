@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed outgoing-grant spent-amount reads with per-call tokens, required
+  nullable typed responses, operation-specific errors and no automatic replay.
 - Add the standalone outgoing-grant spent-amount response with required nullable
   typed amounts, preserved JSON extensions, safe inspection and explicit null exports.
 - Add signed outgoing-payment listing with typed pages, per-item Node consistency

@@ -21,6 +21,7 @@ defmodule OpenPayments.Client do
   `OpenPayments.OutgoingPayment.get/3` reads an outgoing payment.
   `OpenPayments.OutgoingPayment.create/4` creates an outgoing payment.
   `OpenPayments.OutgoingPayment.list/4` fetches one page of outgoing payments.
+  `OpenPayments.OutgoingPayment.get_grant_spent_amounts/3` reads current grant spending.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -96,7 +97,8 @@ defmodule OpenPayments.Client do
   Outgoing payments use `OpenPayments.OutgoingPayment.get/3` and
   `OpenPayments.OutgoingPayment.create/4`.
   `OpenPayments.OutgoingPayment.list/4` lists them with per-call pagination.
-  Other authenticated resource operations remain under development.
+  `OpenPayments.OutgoingPayment.get_grant_spent_amounts/3` reads the token's current
+  grant spent amounts.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}
   def new_authenticated(opts) do
