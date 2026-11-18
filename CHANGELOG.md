@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed access-token revocation using typed management credentials, HTTP 204
+  acknowledgement and operation-specific errors without automatic replay.
 - Add signed access-token rotation and a typed response wrapper with metadata
   preservation, credential-role validation and operation-specific errors.
 - Add pure SHA-256 interaction callback-hash calculation and constant-time verification,

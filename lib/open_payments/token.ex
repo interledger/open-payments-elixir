@@ -13,6 +13,7 @@ defmodule OpenPayments.Token do
   alias OpenPayments.Types.{AccessToken, TokenRotationResponse}
 
   @operation :rotate_access_token
+  @revoke_operation :revoke_access_token
 
   @doc """
   Rotates an issued access token using its management URI and current value.
@@ -43,6 +44,37 @@ defmodule OpenPayments.Token do
       {:ok, rotated}
     else
       {:error, error} -> {:error, %{error | operation: @operation}}
+    end
+  end
+
+  @doc """
+  Revokes an issued access token using its management URI and current value.
+
+  Pass a typed `AccessToken` and the authenticated client holding its bound
+  signing key. Sends one signed DELETE with GNAP authorization, no request body
+  and no appended path. Continuation credentials cannot replace the token.
+
+  HTTP 204 returns `:ok` without JSON parsing or content decoding. Other success
+  statuses are unexpected-status decoding errors. Failures carry operation
+  `:revoke_access_token`, and the usual request URL/header policies apply.
+
+  Use the latest token after rotation. The authorization server checks key
+  binding and determines revocation's effect; the SDK does not store or remove
+  tokens, mutate the client/input, assess elapsed expiry or track grant state.
+  Redirects and automatic retries are disabled, including after ambiguous
+  transport failures. Grant cancellation uses `OpenPayments.Grant.cancel/2`.
+  """
+  @spec revoke(Client.t(), AccessToken.t()) :: :ok | {:error, Error.t()}
+  def revoke(client, token) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         :ok <- validate_token(token),
+         {:ok, response} <-
+           Client.request_signed(client, :delete, token.manage, access_token: token.value),
+         :ok <- JSON.expect_no_content(response, [204], @revoke_operation) do
+      :ok
+    else
+      {:error, error} -> {:error, %{error | operation: @revoke_operation}}
     end
   end
 

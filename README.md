@@ -41,8 +41,8 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Grant operations and token rotation are available; revocation and
-authenticated resource operations remain under development.
+followed. Grant and token-management operations are available; authenticated
+resource operations remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -96,9 +96,9 @@ use the same URL/payment-pointer rules as discovery and are normalized once.
 Construction makes no HTTP requests and does not check wallet/key registration.
 Client inspection omits the identity, key and custom headers. Access tokens remain
 per-call data rather than client state. Public reads stay unsigned, following
-Node's public-GET behavior. Grant operations and `OpenPayments.Token.rotate/2`
-use signed dispatch; revocation and authenticated resource operations remain
-under development.
+Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
+`OpenPayments.Token.revoke/2` use signed dispatch; authenticated resource operations
+remain under development.
 
 ## Requesting a grant
 
@@ -203,7 +203,7 @@ retries are disabled, including after ambiguous connection failures.
 
 The SDK stores no grant state or credentials and leaves the supplied structs
 unchanged. The server checks key binding and determines the cancellation's effect.
-Resource-token revocation remains under development. Live signed-provider checks
+Use `Token.revoke/2` for resource-token revocation. Live signed-provider checks
 remain pending.
 
 ## Rotating an access token
@@ -241,7 +241,34 @@ map/JSON exports include them.
 are also available for standalone response handling. Required `access_token`
 rejects omission/null and revalidates all typed access entries. Additional JSON
 fields are preserved at the wrapper level; the issued token itself keeps its
-strict schema. Revocation and live signed-provider verification remain pending.
+strict schema. Live signed-provider verification remains pending.
+
+## Revoking an access token
+
+Pass the latest issued token and the authenticated client holding its bound
+signing key:
+
+```elixir
+:ok = OpenPayments.Token.revoke(client, rotated.access_token)
+```
+
+This sends one signed DELETE to the token's `manage` URI using its current `value`
+in `Authorization: GNAP ...`, with no body or appended path. Typed token data is
+revalidated; continuation credentials cannot replace it. The usual outgoing URL
+and token68 header policies apply. The server checks key binding and determines
+revocation's effect.
+
+HTTP 204 returns `:ok` without JSON parsing or content decoding. Other success
+statuses return an `unexpected_status` decoding error. HTTP/transport failures
+retain their status or existing error kind, and all errors use
+`operation: :revoke_access_token`. Redirects and automatic retries are disabled,
+including after ambiguous connection failures.
+
+Tokens remain per-call data, safe to use with a shared client. The SDK leaves the
+client/input unchanged, stores no credentials and performs no elapsed-expiry or
+grant-state tracking. The application owns removal of its stored token after
+revocation. Grant cancellation uses `Grant.cancel/2` with continuation data.
+Live signed-provider verification remains pending.
 
 ## Verifying an interaction callback hash
 
@@ -535,7 +562,7 @@ those concerns belong to token use and management operations.
 Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
 export protocol values, including the token and nested card results. Inspection
 shows only expiry metadata; errors retain safe field paths. Use `Token.rotate/2`
-for rotation; revocation remains under development.
+for rotation and `Token.revoke/2` for revocation.
 
 ## Grant continuation data
 
