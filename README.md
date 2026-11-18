@@ -761,9 +761,32 @@ amount values or timestamps; Node-style payment consistency checks belong to the
 forthcoming operations.
 
 Payment methods are not declared by this detailed schema, so any `methods` field
-is retained as an uninterpreted extension. The authenticated read/create schema
-additionally requires typed payment methods; that variant and authenticated
-incoming-payment HTTP operations remain under development.
+is retained as an uninterpreted extension. Use `Types.IncomingPaymentWithMethods`
+for the authenticated read/create schema, which additionally requires typed
+payment methods. Authenticated incoming-payment HTTP operations remain under development.
+
+## Incoming-payment data with payment methods
+
+`OpenPayments.Types.IncomingPaymentWithMethods.from_map/1` decodes the
+`incoming-payment-with-access-token` response schema used by create and
+authenticated reads. Fields remain flat on the struct, including `wallet_address`,
+typed amounts, optional metadata and a required `methods` list of typed
+`ILPPaymentMethod` structs. Detail validation is shared with `Types.IncomingPayment`.
+
+The methods array may be empty, but omission and explicit null are invalid.
+Complete protocol method objects must be unique; their order is preserved.
+Malformed entries use indexed paths such as `methods[1].shared_secret` without
+retaining rejected values. The current schema supports ILP methods with strict
+method fields. `authServer` is not required and is preserved as extension data if
+supplied, along with other permitted JSON fields.
+
+`validate/1` revalidates details, typed methods, uniqueness and extensions after
+manual changes. `to_map/1` and JSON encoding include shared secrets, metadata and
+extensions; inspection omits those values. URI/timestamp spelling and optional
+field rules follow the detailed type. The codec makes no requests, connects to
+no payment method and performs no asset/amount/time consistency checks.
+The create request payload and authenticated incoming-payment operations remain
+under development.
 
 ## ILP payment methods
 

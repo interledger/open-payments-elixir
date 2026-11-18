@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the incoming-payment response with required typed ILP methods, protocol-object
+  uniqueness, shared detail validation and secret-safe inspection/errors.
 - Add the detailed incoming-payment response type with typed amounts, wallet and
   metadata validation, preserved JSON fields and safe inspection/errors.
 - Add signed access-token revocation using typed management credentials, HTTP 204
