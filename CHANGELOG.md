@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed outgoing-payment pages with pagination metadata, strict ordered
+  payment items, preserved wrapper extensions and safe indexed validation errors.
 - Add signed outgoing-payment creation for quote/direct request forms with
   typed spent-amount responses, Node consistency checks and no automatic replay.
 - Add signed outgoing-payment reads with per-call raw/typed tokens, typed

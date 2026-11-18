@@ -1405,7 +1405,8 @@ encoding export integer counts and raw cursors without validating or percent
 encoding. Inspection shows only counts; explicit exports include cursors, and
 errors retain safe field paths without rejected values. This type makes no
 requests or automatic page traversal. Incoming-payment pages use
-`Types.IncomingPaymentPaginationResult` below. Pass these arguments through the
+`Types.IncomingPaymentPaginationResult` and `Types.OutgoingPaymentPaginationResult`
+below. Pass these arguments through the
 `pagination` option on `IncomingPayment.list/4`; outgoing-payment listing remains
 under development.
 
@@ -1437,9 +1438,51 @@ Use `validate/1` after modifying a struct. `to_map/1` and JSON encoding export t
 protocol fields without validating. Inspection exposes only the flags; explicit
 exports include cursors. Errors retain safe field paths without rejected values.
 This type makes no requests or automatic page traversal. Query arguments use
-`Types.Pagination` above; incoming-payment pages use the result type below.
+`Types.Pagination` above; incoming- and outgoing-payment pages use the result types below.
 Incoming-payment listing uses `IncomingPayment.list/4`; outgoing-payment listing
 remains under development.
+
+## Outgoing-payment page data
+
+`OpenPayments.Types.OutgoingPaymentPaginationResult` decodes a page into typed
+`PageInfo` metadata and an ordered list of detailed `OutgoingPayment` structs:
+
+```elixir
+{:ok, page} = OpenPayments.Types.OutgoingPaymentPaginationResult.from_map(%{
+  "pagination" => %{"hasNextPage" => false, "hasPreviousPage" => false},
+  "result" => []
+})
+
+page.pagination.has_next_page
+page.result
+:ok = OpenPayments.Types.OutgoingPaymentPaginationResult.validate(page)
+```
+
+Both wrapper fields are required, following Node's `PaginationResult<T>` contract.
+The pinned response declares these properties without marking them required; the
+SDK deliberately rejects missing/null fields rather than supplying defaults.
+Empty results are valid, and item order and duplicates are preserved.
+
+Each result item uses the strict detailed outgoing-payment schema, with three
+typed amounts and optional quote, failure status and metadata. Unknown item fields,
+including grant spent amounts and `updatedAt`, are rejected. Creation responses
+with spent amounts use their separate type. Permitted nested amount extensions
+and JSON metadata are retained; additional JSON fields on the page wrapper remain
+in `extensions`. Wrapper extensions cannot override `pagination` or `result`.
+
+The codec does not compare flags or cursors with item IDs, counts or ordering.
+It retains schema-valid asset, amount and failure-state combinations; Node's
+additional payment consistency checks belong to the HTTP operations. Missing
+`failed` stays nil. No wallet identity, completion or grant-spending inference
+is performed, and no requests or automatic page traversal occur. Outgoing-payment
+HTTP listing remains under development.
+
+`validate/1` revalidates typed metadata, each detailed payment and wrapper
+extensions; protocol maps or other response structs cannot replace typed children.
+Errors retain safe paths such as `result[1].sent_amount.value` and
+`pagination.end_cursor`, without rejected values or unknown names. Inspection
+hides the entire page payload. Explicit map/JSON exports include cursors,
+references, amounts, metadata and extensions without validating.
 
 ## Incoming-payment page data
 
