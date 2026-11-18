@@ -1942,6 +1942,61 @@ After dependencies are installed, `mix test` runs without internet access,
 credentials, a database, or an external payment server. External integration tests
 are excluded by default.
 
+## Testnet interoperability checks
+
+Run public discovery against a testnet wallet URL or payment pointer:
+
+```sh
+export OPEN_PAYMENTS_INTEGRATION_WALLET_ADDRESS='$wallet.example.com/alice'
+mix test test/integration/discovery_test.exs --include integration
+```
+
+These two checks use real HTTPS requests for wallet information and its JWKS.
+They need no private key or access token. Provider URLs come from configuration
+and discovery; no hostnames, tenant paths or auth/resource ports are assumed.
+The default `mix test` and CI suite exclude all `:integration` tests.
+
+For a signed read, register an Ed25519 public key with the provider and obtain
+an issued access token bound to that key with permission to read the selected
+resource. Keep the matching unencrypted PKCS#8 PEM private key and the token in
+local files outside the checkout. The token file contains only the token value,
+with an optional final newline, without a `GNAP`/`Bearer` prefix or JSON wrapper.
+Do not use a continuation token or token-management credential.
+
+```sh
+export OPEN_PAYMENTS_INTEGRATION_PRIVATE_KEY_FILE='/absolute/path/client-key.pem'
+export OPEN_PAYMENTS_INTEGRATION_KEY_ID='provider-registered-key-id'
+export OPEN_PAYMENTS_INTEGRATION_ACCESS_TOKEN_FILE='/absolute/path/access-token.txt'
+export OPEN_PAYMENTS_INTEGRATION_READ_KIND='incoming'
+export OPEN_PAYMENTS_INTEGRATION_RESOURCE_URL='https://resource.example.com/tenant/incoming-payments/existing-id'
+mix test test/integration/signed_read_test.exs --include integration
+```
+
+`READ_KIND` accepts `incoming`, `quote`, `outgoing` or `grant_spent`. The first
+three require the complete existing resource URL. `grant_spent` instead uses the
+configured wallet's discovered `resourceServer` and needs no `RESOURCE_URL`;
+the token must belong to a grant on that server. Run the check again for each
+resource kind and its appropriate token. The configured wallet also identifies
+the signing client. The check confirms the local key's ID and public material
+appear in that wallet's JWKS before sending the signed read.
+
+Explicitly selected checks fail when configuration is missing or credentials
+are rejected. They do not silently skip, follow redirects or automatically retry.
+Diagnostics report the operation, error kind and HTTP status without dumping
+provider payloads, tokens, key contents or local credential paths. No dotenv
+loader or browser automation is used. Provider-specific registration and consent
+remain outside the SDK; see [Open Payments client keys](https://openpayments.dev/identity/client-keys/).
+The sibling [Go integration suite](https://github.com/interledger/open-payments-go/tree/bedf1cb20940b296ca4a953383fa26488b27b313/test/integration)
+also documents a testnet target and its account setup requirements.
+
+These checks only issue GET requests. Successful discovery verifies public
+response compatibility; a successful signed read additionally verifies that
+provider's acceptance of the configured signature and credential for that
+operation. Grant issuance, browser consent, signed request bodies, mutations and
+funded settlement require separate live acceptance and are not established by
+these checks. The offline complete-flow tests below cover protocol composition
+with a simulator.
+
 ## Archive consumer verification
 
 Build and verify the package in a separate temporary Mix project:
