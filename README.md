@@ -41,8 +41,8 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Grant initiation is available; token and authenticated resource operations
-remain under development.
+followed. Grant operations and token rotation are available; revocation and
+authenticated resource operations remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -96,8 +96,9 @@ use the same URL/payment-pointer rules as discovery and are normalized once.
 Construction makes no HTTP requests and does not check wallet/key registration.
 Client inspection omits the identity, key and custom headers. Access tokens remain
 per-call data rather than client state. Public reads stay unsigned, following
-Node's public-GET behavior. `OpenPayments.Grant.request/3` uses signed dispatch;
-token and authenticated resource operations remain under development.
+Node's public-GET behavior. Grant operations and `OpenPayments.Token.rotate/2`
+use signed dispatch; revocation and authenticated resource operations remain
+under development.
 
 ## Requesting a grant
 
@@ -202,8 +203,45 @@ retries are disabled, including after ambiguous connection failures.
 
 The SDK stores no grant state or credentials and leaves the supplied structs
 unchanged. The server checks key binding and determines the cancellation's effect.
-Resource-token revocation uses the token-management API, which remains under
-development. Live signed-provider checks remain pending.
+Resource-token revocation remains under development. Live signed-provider checks
+remain pending.
+
+## Rotating an access token
+
+Pass an issued `OpenPayments.Types.AccessToken` and the authenticated client
+holding its bound signing key:
+
+```elixir
+{:ok, rotated} = OpenPayments.Token.rotate(client, issued_token)
+new_token = rotated.access_token
+```
+
+Rotation sends one signed POST to `issued_token.manage` using its current `value`
+in `Authorization: GNAP ...`, with no request body or appended path. Authorization
+is covered by the signature. The token is revalidated; continuation credentials
+cannot replace it. The usual request URL/token68 policies apply, including HTTPS
+by default and explicit development HTTP opt-in.
+
+HTTP 200 returns `{:ok, %OpenPayments.Types.TokenRotationResponse{}}`, retaining
+the `access_token` wrapper as Node does. The returned token is typed and permitted
+root JSON metadata remains in `extensions`. Use `rotated.access_token`, including
+its returned management URI, for subsequent calls. The application owns storage
+and replacement of its current token; the SDK keeps no token state and leaves
+the client/input unchanged. The server checks key binding and determines old-token
+invalidation. The SDK does not rotate the signing key, assess elapsed expiry or
+compare old/new access.
+
+Errors use `operation: :rotate_access_token`, with configuration, validation,
+signing, transport, HTTP or decoding kinds and safe nested field paths. Redirects
+and automatic retries are disabled, including after ambiguous transport failures.
+Inspecting the response hides tokens, card results and extensions; explicit
+map/JSON exports include them.
+
+`Types.TokenRotationResponse.from_map/1`, `validate/1`, `to_map/1` and JSON encoding
+are also available for standalone response handling. Required `access_token`
+rejects omission/null and revalidates all typed access entries. Additional JSON
+fields are preserved at the wrapper level; the issued token itself keeps its
+strict schema. Revocation and live signed-provider verification remain pending.
 
 ## Verifying an interaction callback hash
 
@@ -496,8 +534,8 @@ those concerns belong to token use and management operations.
 
 Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
 export protocol values, including the token and nested card results. Inspection
-shows only expiry metadata; errors retain safe field paths. Token management
-operations remain under development.
+shows only expiry metadata; errors retain safe field paths. Use `Token.rotate/2`
+for rotation; revocation remains under development.
 
 ## Grant continuation data
 
