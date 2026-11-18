@@ -785,8 +785,42 @@ manual changes. `to_map/1` and JSON encoding include shared secrets, metadata an
 extensions; inspection omits those values. URI/timestamp spelling and optional
 field rules follow the detailed type. The codec makes no requests, connects to
 no payment method and performs no asset/amount/time consistency checks.
-The create request payload and authenticated incoming-payment operations remain
-under development.
+`Types.CreateIncomingPayment` models the create payload. Authenticated
+incoming-payment operations remain under development.
+
+## Incoming-payment create request data
+
+`OpenPayments.Types.CreateIncomingPayment` models the strict
+`create-incoming-payment-request` payload:
+
+```elixir
+{:ok, amount} = OpenPayments.Types.Amount.new("2500", "USD", 2)
+request = %OpenPayments.Types.CreateIncomingPayment{
+  wallet_address: "https://wallet.example.com/alice",
+  incoming_amount: amount,
+  metadata: %{"externalRef" => "invoice-1"}
+}
+
+:ok = OpenPayments.Types.CreateIncomingPayment.validate(request)
+```
+
+`from_map/1` accepts protocol JSON fields: required `walletAddress` and optional
+`incomingAmount`, `expiresAt` and object `metadata`. Amounts become typed structs.
+Omitted optionals become nil and are omitted on export; explicit null is invalid.
+Extra top-level fields, response-only fields and snake-case wire aliases are
+rejected. Metadata may contain arbitrary JSON fields, including an empty object;
+permitted nested amount extensions are preserved.
+
+The wallet follows the schema's absolute-URI format, with no payment-pointer
+resolution or discovery request. RFC 3339 expiry and URI spelling are preserved;
+no positive-amount or future-expiry rule is inferred. The request description
+requires the amount's asset to match the wallet's asset; checking that relationship
+needs wallet/operation context and is outside this standalone codec.
+
+Use `validate/1` after manual changes. `to_map/1` and JSON encoding export protocol
+fields without validating. Inspection exposes only expiry metadata; errors retain
+safe paths such as `incoming_amount.asset_scale` without rejected values. The type
+makes no requests. Authenticated incoming-payment HTTP operations remain under development.
 
 ## ILP payment methods
 

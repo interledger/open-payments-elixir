@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the incoming-payment create request type with strict fields, typed optional
+  amount, expiry/metadata validation, JSON codecs and safe inspection/errors.
 - Add the incoming-payment response with required typed ILP methods, protocol-object
   uniqueness, shared detail validation and secret-safe inspection/errors.
 - Add the detailed incoming-payment response type with typed amounts, wallet and
