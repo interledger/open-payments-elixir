@@ -874,6 +874,36 @@ A timeout can follow server-side completion; the caller decides how to reconcile
 the result. Local tests cover create → complete → read with fresh state. Live
 signed-provider testing remains pending.
 
+## Pagination metadata
+
+`OpenPayments.Types.PageInfo` models the shared `page-info` schema used by
+incoming- and outgoing-payment lists:
+
+```elixir
+{:ok, page_info} = OpenPayments.Types.PageInfo.from_map(%{
+  "hasNextPage" => true,
+  "hasPreviousPage" => false,
+  "startCursor" => "opaque-start",
+  "endCursor" => "opaque-end"
+})
+
+page_info.has_next_page
+page_info.end_cursor
+```
+
+Both flags are required booleans, with no defaults. Cursors are optional nonempty
+UTF-8 strings. Missing cursors become nil and are omitted on export; explicit
+JSON null and empty strings are rejected. Extra fields and snake-case JSON aliases
+are invalid. Cursor spelling is preserved without UUID, URL or encoding rules.
+Either cursor may appear independently, and page flags do not imply that a cursor
+must exist. This type does not compare cursors with result items or infer ordering.
+
+Use `validate/1` after modifying a struct. `to_map/1` and JSON encoding export the
+protocol fields without validating. Inspection exposes only the flags; explicit
+exports include cursors. Errors retain safe field paths without rejected values.
+This type makes no requests or automatic page traversal. Pagination query types,
+typed list results and signed list operations remain under development.
+
 ## Detailed incoming-payment data
 
 `OpenPayments.Types.IncomingPayment.from_map/1` decodes the detailed

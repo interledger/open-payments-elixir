@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add shared pagination metadata with required page flags, optional opaque cursors,
+  strict fields, JSON codecs and safe inspection/errors.
 - Add signed incoming-payment completion with per-call tokens, bodyless POSTs,
   detailed response fields and Node-style completed/asset consistency checks.
 - Add signed incoming-payment creation with typed/map payloads, per-call tokens,
