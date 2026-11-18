@@ -55,8 +55,9 @@ defmodule OpenPayments.Interaction do
 
   Returns `:ok` on a match, otherwise a validation error with operation
   `:verify_interaction_hash`. Equal-length canonical hash strings are compared
-  using OTP's `:crypto.hash_equals/2`. Received hash must already be extracted and
-  URL-decoded once by the caller's callback handler; no decoding is performed here.
+  using [OTP's constant-time comparison](https://www.erlang.org/doc/apps/crypto/crypto.html#hash_equals/2).
+  Received hash must already be extracted and URL-decoded once by the caller's
+  callback handler; no decoding is performed here.
   Only submit `interact_ref` to continuation after verification succeeds.
   """
   @spec verify_hash(String.t(), hash_options()) :: :ok | {:error, Error.t()}
