@@ -99,7 +99,8 @@ per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as do
 `OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4` and
-`OpenPayments.IncomingPayment.complete/3`. Other authenticated resource operations
+`OpenPayments.IncomingPayment.complete/3` and `OpenPayments.IncomingPayment.list/4`.
+Other authenticated resource operations
 remain under development.
 
 ## Requesting a grant
@@ -767,7 +768,7 @@ signing, HTTP or transport kinds. Amount values, timestamps, the requested URL a
 token metadata are not compared for equality with the returned resource.
 
 Inspection hides shared secrets, metadata and extensions; explicit map/JSON
-exports include them. Listing remains under development.
+exports include them. Listing uses `IncomingPayment.list/4` below.
 Live signed-provider testing remains pending.
 
 ## Creating incoming payments
@@ -874,6 +875,63 @@ A timeout can follow server-side completion; the caller decides how to reconcile
 the result. Local tests cover create → complete → read with fresh state. Live
 signed-provider testing remains pending.
 
+## Listing incoming payments
+
+Fetch one page with the discovered resource-server base URL, the wallet ID to
+filter by, and an authenticated client/token authorized to list its payments:
+
+```elixir
+{:ok, page} =
+  OpenPayments.IncomingPayment.list(client, wallet.resource_server, wallet.id,
+    access_token: issued_token,
+    pagination: %OpenPayments.Types.Pagination{first: 25}
+  )
+
+page.result
+page.pagination.has_next_page
+page.pagination.end_cursor
+```
+
+`access_token` is required and accepts a raw token string or typed `AccessToken`.
+Optional `pagination` accepts a typed `Pagination` or a string-keyed protocol map,
+such as `%{"last" => 25, "cursor" => cursor}`. Typed values are revalidated before
+HTTP. Omit `pagination`, or pass an empty struct/map, to leave count and cursor
+defaults to the server. Explicit nil, duplicate options, unsupported options and
+per-call key/header overrides are invalid.
+
+Call `list/4` again to fetch another page. For forward traversal, use `first` and
+the returned `end_cursor`; for backward traversal, use `last` and `start_cursor`.
+The SDK returns the server's flags/cursors without assuming they are present or
+consistent with result counts. It does not traverse pages automatically, follow
+extension links, cache responses, refresh tokens, follow redirects or retry.
+Each explicit call may use a fresh token and independent wallet/pagination data.
+
+The wallet filter is a required UTF-8 string, matching the pinned query schema.
+Use the discovered wallet ID for ordinary requests. This filter does not apply
+wallet-discovery URI rules, resolve payment pointers or substitute client identity.
+Schema-valid strings, including an empty string, are encoded and sent explicitly;
+the server checks their meaning and access permissions. This differs from Node's
+generic truthy-value query filter, which silently omits an empty wallet string.
+
+The SDK appends `/incoming-payments` to the resource-server base, preserving tenant
+paths and reusing a trailing slash. Base queries (including an empty `?`), user-info
+and fragments are rejected. HTTPS ports are supported; HTTP requires development
+opt-in. The request signs the final encoded query target with GNAP authorization,
+no body and no content headers. Form encoding matches Node's `URLSearchParams`,
+including space as `+`, literal plus as `%2B`, `~` as `%7E`, and literal `*`.
+Keys use a stable wallet-address-first order with sorted pagination fields; source
+cursor/filter strings are encoded once without decoding their percent sequences.
+
+HTTP 200 returns `{:ok, %OpenPayments.Types.IncomingPaymentPaginationResult{}}`.
+Every item's incoming amount, when present, must match its received amount's
+asset code and scale, following Node. Schema or consistency failures return
+`kind: :decoding`, `code: "invalid_response"`, status 200 and safe indexed fields
+such as `result[1].incoming_amount`. Errors carry `operation: :list_incoming_payments`.
+The typed page contract requires pagination/result and the documented detailed
+item fields; methods are excluded. Other amount/time/identity/page-size comparisons
+are not inferred. Explicit exports include cursors, metadata and wrapper extensions;
+inspection omits the page payload. Live signed-provider testing remains pending.
+
 ## Pagination query arguments
 
 `OpenPayments.Types.Pagination` models the optional query arguments shared by
@@ -905,7 +963,8 @@ encoding export integer counts and raw cursors without validating or percent
 encoding. Inspection shows only counts; explicit exports include cursors, and
 errors retain safe field paths without rejected values. This type makes no
 requests or automatic page traversal. Incoming-payment pages use
-`Types.IncomingPaymentPaginationResult` below; signed list operations remain
+`Types.IncomingPaymentPaginationResult` below. Pass these arguments through the
+`pagination` option on `IncomingPayment.list/4`; outgoing-payment listing remains
 under development.
 
 ## Pagination metadata
@@ -937,7 +996,8 @@ protocol fields without validating. Inspection exposes only the flags; explicit
 exports include cursors. Errors retain safe field paths without rejected values.
 This type makes no requests or automatic page traversal. Query arguments use
 `Types.Pagination` above; incoming-payment pages use the result type below.
-Signed list operations remain under development.
+Incoming-payment listing uses `IncomingPayment.list/4`; outgoing-payment listing
+remains under development.
 
 ## Incoming-payment page data
 
@@ -976,7 +1036,8 @@ Errors use safe indexed paths such as `result[1].received_amount.value` or
 manual changes. `to_map/1` and JSON encoding export protocol fields without
 validation. Inspection hides the full payload; explicit exports include cursors,
 metadata and wrapper extensions. This type makes no requests or automatic page
-traversal. The signed list operation remains under development.
+traversal. `IncomingPayment.list/4` uses this type and applies per-item asset
+consistency checks.
 
 ## Detailed incoming-payment data
 
@@ -1019,8 +1080,8 @@ Payment methods are not declared by this detailed schema, so any `methods` field
 is retained as an uninterpreted extension. Use `Types.IncomingPaymentWithMethods`
 for the authenticated read/create schema, which additionally requires typed
 payment methods. `IncomingPayment.get/3` and `IncomingPayment.create/4` use that
-variant; `IncomingPayment.complete/3` returns the detailed type above, and listing
-remains under development.
+variant; `IncomingPayment.complete/3` and items in `IncomingPayment.list/4` return
+the detailed type above.
 
 ## Incoming-payment data with payment methods
 
@@ -1044,7 +1105,7 @@ field rules follow the detailed type. The codec makes no requests, connects to
 no payment method and performs no asset/amount/time consistency checks.
 `Types.CreateIncomingPayment` models the create payload. `IncomingPayment.get/3`
 and `IncomingPayment.create/4` return this response type. Completion returns the
-detailed type without methods; listing remains under development.
+detailed type without methods, as do items in incoming-payment list results.
 
 ## Incoming-payment create request data
 
@@ -1093,7 +1154,7 @@ Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly incl
 it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
 after manually constructing or modifying a struct. `IncomingPayment.get/3` and
 `IncomingPayment.create/4` return typed methods; completion returns detailed data
-without methods, and listing remains under development.
+without methods, as do items in incoming-payment list results.
 
 ## Amounts
 
@@ -1346,7 +1407,7 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, plus incoming-payment reads, creation and completion;
+public client and wallet discovery, plus incoming-payment reads, creation, completion and listing;
 other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

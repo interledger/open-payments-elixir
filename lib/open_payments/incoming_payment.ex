@@ -14,6 +14,8 @@ defmodule OpenPayments.IncomingPayment do
   additionally requires zero received funds and completed false in the response.
   Completion signs a bodyless POST to the payment's complete endpoint and returns
   detailed payment data with completed true.
+  Listing signs a GET with encoded wallet/pagination query arguments and returns
+  one typed page with consistent amount assets for every item.
   """
 
   alias OpenPayments.{Client, Error}
@@ -24,14 +26,66 @@ defmodule OpenPayments.IncomingPayment do
   alias OpenPayments.Types.{
     AccessToken,
     CreateIncomingPayment,
+    IncomingPaymentPaginationResult,
     IncomingPaymentWithMethods,
-    PublicIncomingPayment
+    Pagination,
+    PublicIncomingPayment,
+    Validation
   }
 
   @operation :get_public_incoming_payment
   @get_operation :get_incoming_payment
   @create_operation :create_incoming_payment
   @complete_operation :complete_incoming_payment
+  @list_operation :list_incoming_payments
+
+  @doc """
+  Lists one page of incoming payments using a signed GET.
+
+  Supply the resource-server base URL and wallet filter separately. The required
+  `access_token` option accepts the same raw string or typed token as `get/3`.
+  Optional `pagination` accepts a typed `Pagination` or string-keyed map; omission
+  sends no cursor/count defaults, while explicit nil is invalid. Other options,
+  duplicate keys and per-call key/header overrides are rejected.
+
+  The wallet filter follows the pinned required-string query schema, without
+  URI validation or payment-pointer resolution. Use the discovered wallet ID for
+  normal requests. Every UTF-8 string, including empty, is encoded and sent as
+  wallet-address; provider meaning and permissions remain server checks. Unlike
+  Node's truthy-value filtering, an empty wallet string is not silently omitted.
+
+  Appends `/incoming-payments` to the base while preserving tenant paths and
+  reusing a trailing slash. Base queries are rejected. Query values use Node's
+  URLSearchParams form encoding, with a stable wallet-address-first order and
+  sorted pagination keys. Encoding finishes before signing the complete target.
+
+  HTTP 200 returns `IncomingPaymentPaginationResult` and requires incoming/received
+  asset code and scale consistency for every item, following Node. Schema or
+  consistency failures return decoding/invalid_response with safe indexed fields
+  and status 200. Errors carry `:list_incoming_payments`.
+
+  This call does not infer result ordering, compare wallet identities or page
+  sizes, cache responses, fetch another page, follow links/redirects, retry or
+  refresh tokens. The caller chooses cursor/direction for each subsequent call.
+  Explicit page exports include cursors, metadata and extensions.
+  """
+  @spec list(Client.t(), String.t(), String.t(), [
+          {:access_token, String.t() | AccessToken.t()} | {:pagination, Pagination.t() | map()}
+        ]) :: {:ok, IncomingPaymentPaginationResult.t()} | {:error, Error.t()}
+  def list(client, base_url, wallet_address, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, token, pagination} <- list_options(opts),
+         :ok <- wallet_filter(wallet_address),
+         {:ok, url} <- list_url(base_url, Client.allow_http?(client), wallet_address, pagination),
+         {:ok, response} <- Client.request_signed(client, :get, url, access_token: token),
+         {:ok, data} <- JSON.decode(response, [200], @list_operation),
+         {:ok, page} <- decode_page(data, response.status) do
+      {:ok, page}
+    else
+      {:error, error} -> {:error, %{error | operation: @list_operation}}
+    end
+  end
 
   @doc """
   Creates an incoming payment using a signed POST and a per-call access token.
@@ -194,6 +248,56 @@ defmodule OpenPayments.IncomingPayment do
 
   defp create_payload(payload), do: CreateIncomingPayment.from_map(payload)
 
+  defp list_options(opts) when is_list(opts) do
+    if Keyword.keyword?(opts) and length(Enum.uniq(Keyword.keys(opts))) == length(opts) and
+         Enum.all?(Keyword.keys(opts), &(&1 in [:access_token, :pagination])) do
+      with {:ok, token} <- Client.resource_access_token(Keyword.take(opts, [:access_token])),
+           {:ok, pagination} <- prepare_pagination(Keyword.get(opts, :pagination, %Pagination{})) do
+        {:ok, token, pagination}
+      end
+    else
+      invalid_payment(
+        :options,
+        "must contain unique access_token and optional pagination options"
+      )
+    end
+  end
+
+  defp list_options(_opts),
+    do:
+      invalid_payment(
+        :options,
+        "must be a keyword list with access_token and optional pagination"
+      )
+
+  defp prepare_pagination(%Pagination{} = pagination) do
+    with :ok <- Pagination.validate(pagination), do: {:ok, pagination}
+  end
+
+  defp prepare_pagination(data), do: Pagination.from_map(data)
+
+  defp wallet_filter(value) do
+    if Validation.string?(value),
+      do: :ok,
+      else: invalid_payment(:wallet_address, "must be a string")
+  end
+
+  defp list_url(base_url, allow_http, wallet_address, pagination) do
+    with {:ok, url} <- append_path(base_url, allow_http, "incoming-payments") do
+      query =
+        pagination
+        |> Pagination.to_map()
+        |> Enum.sort()
+        |> List.insert_at(0, {"wallet-address", wallet_address})
+        |> URI.encode_query()
+        # URLSearchParams escapes tilde and leaves asterisk literal.
+        |> String.replace("~", "%7E")
+        |> String.replace("%2A", "*")
+
+      {:ok, url <> "?" <> query}
+    end
+  end
+
   defp append_path(base_url, allow_http, path) do
     with {:ok, url} <- URL.prepare(base_url, allow_http),
          {:ok, %URI{query: nil}} <- URI.new(base_url) do
@@ -233,6 +337,40 @@ defmodule OpenPayments.IncomingPayment do
       true ->
         :ok
     end
+  end
+
+  defp decode_page(data, status) do
+    with {:ok, page} <- IncomingPaymentPaginationResult.from_map(data),
+         :ok <- validate_page_assets(page.result) do
+      {:ok, page}
+    else
+      {:error, error} ->
+        {:error,
+         %{
+           error
+           | kind: :decoding,
+             status: status,
+             code: "invalid_response",
+             description: "Invalid Open Payments incoming-payment list response"
+         }}
+    end
+  end
+
+  defp validate_page_assets(payments) do
+    payments
+    |> Enum.with_index()
+    |> Enum.reduce_while(:ok, fn {payment, index}, :ok ->
+      case validate_assets(payment) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, error} ->
+          errors =
+            Enum.map(error.validation_errors, &%{&1 | field: "result[#{index}].#{&1.field}"})
+
+          {:halt, {:error, %{error | validation_errors: errors}}}
+      end
+    end)
   end
 
   defp decode_authenticated(data, status, mode \\ :read) do

@@ -1,0 +1,62 @@
+{
+  "provenance": {
+    "generator": "Node.js v26.13.0 URLSearchParams",
+    "notes": "Form-encoding vectors with stable wallet-address-first and sorted pagination keys. This tests the encoder, not the SDK truthy-value filter; empty wallet is explicitly encoded. Tests do not require Node."
+  },
+  "vectors": [
+    {
+      "input": {
+        "wallet_address": "https://wallet.example.com/alice",
+        "pagination": {}
+      },
+      "query": "wallet-address=https%3A%2F%2Fwallet.example.com%2Falice"
+    },
+    {
+      "input": {
+        "wallet_address": "https://wallet.example.com/a+b?part=x&nested=%2F~*",
+        "pagination": {
+          "cursor": "a+/=%2f?& ~*☕",
+          "first": 25
+        }
+      },
+      "query": "wallet-address=https%3A%2F%2Fwallet.example.com%2Fa%2Bb%3Fpart%3Dx%26nested%3D%252F%7E*&cursor=a%2B%2F%3D%252f%3F%26+%7E*%E2%98%95&first=25"
+    },
+    {
+      "input": {
+        "wallet_address": "https://wallet.example.com/☕?q=space here&plus=+",
+        "pagination": {
+          "cursor": "é /+",
+          "last": 100
+        }
+      },
+      "query": "wallet-address=https%3A%2F%2Fwallet.example.com%2F%E2%98%95%3Fq%3Dspace+here%26plus%3D%2B&cursor=e%CC%81+%2F%2B&last=100"
+    },
+    {
+      "input": {
+        "wallet_address": "$wallet.example.com/alice",
+        "pagination": {
+          "cursor": "\n\u0000",
+          "first": 1
+        }
+      },
+      "query": "wallet-address=%24wallet.example.com%2Falice&cursor=%0A%00&first=1"
+    },
+    {
+      "input": {
+        "wallet_address": "",
+        "pagination": {}
+      },
+      "query": "wallet-address="
+    },
+    {
+      "input": {
+        "wallet_address": "https://wallet.example.com/alice",
+        "pagination": {
+          "cursor": " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+          "last": 1
+        }
+      },
+      "query": "wallet-address=https%3A%2F%2Fwallet.example.com%2Falice&cursor=+%21%22%23%24%25%26%27%28%29*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D%7E&last=1"
+    }
+  ]
+}

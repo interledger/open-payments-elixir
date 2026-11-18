@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed incoming-payment listing with typed/map pagination, Node-compatible
+  query encoding, typed pages and indexed asset consistency errors.
 - Add typed incoming-payment pages with pagination metadata, ordered detailed
   items, combined-field restrictions, preserved wrapper extensions and indexed errors.
 - Add pagination query arguments with bounded integer counts, mutually exclusive
