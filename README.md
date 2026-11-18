@@ -41,7 +41,8 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Grant, token and authenticated resource operations are still being implemented.
+followed. Grant initiation is available; token and authenticated resource operations
+remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -95,8 +96,52 @@ use the same URL/payment-pointer rules as discovery and are normalized once.
 Construction makes no HTTP requests and does not check wallet/key registration.
 Client inspection omits the identity, key and custom headers. Access tokens remain
 per-call data rather than client state. Public reads stay unsigned, following
-Node's public-GET behavior; signed dispatch is an internal building block for the
-upcoming grant, token and authenticated resource operations.
+Node's public-GET behavior. `OpenPayments.Grant.request/3` uses signed dispatch;
+token and authenticated resource operations remain under development.
+
+## Requesting a grant
+
+Use an authenticated client and the complete authorization-server URL discovered
+from the wallet:
+
+```elixir
+{:ok, grant} =
+  OpenPayments.Grant.request(client, wallet.auth_server, %{
+    "access_token" => %{
+      "access" => [%{"type" => "incoming-payment", "actions" => ["create", "read"]}]
+    }
+  })
+
+OpenPayments.Types.GrantResponse.approved?(grant)
+```
+
+The payload may be a complete typed `GrantRequest` or a string-keyed protocol map.
+Maps missing `client` receive the configured wallet URI string, following Node's
+default. Explicit client identities retain their string/object form and display
+metadata; explicit null is invalid. Typed requests must already include a valid
+client identity. Explicit wallet overrides are allowed; the authorization server
+checks their key registration. The SDK performs no wallet or JWKS lookup.
+
+Directed identity is checked locally: public JWK fields `kid`, `alg`, `kty`, `crv`
+and canonical `x` must match the configured signing key. Optional public metadata
+is retained. This check is additional to Node's request implementation. Existing
+request validation rejects directed identity with an explicit interaction field.
+
+The operation signs a POST without an access token using the documented Node
+signing profile, serializes the body once for digest/signature/transmission, and
+returns `{:ok, %OpenPayments.Types.GrantResponse{}}`. The authorization URL is used
+directly, preserving path prefixes and queries; HTTPS ports are allowed, and HTTP
+requires the client's explicit development opt-in. No path is appended. Redirects
+and automatic retries are disabled, including after ambiguous transport failures.
+
+Errors use `operation: :request_grant` and distinguish configuration, validation,
+signing, transport, HTTP and decoding failures. Success requires HTTP 200 and a
+valid initial response; nested errors retain safe field paths. Inspecting the
+response hides tokens, callback values, subject identifiers and card results;
+explicit map/JSON exports include them. Grant initiation does not open consent,
+verify callbacks, poll, continue/cancel grants or compare granted/requested access.
+Continuation and cancellation operations remain under development. Local signed
+wire checks pass; live signed-provider compatibility remains a release check.
 
 ## Grant client identities
 
@@ -119,8 +164,8 @@ field names. URI values retain their spelling; this data codec does not resolve
 payment pointers or fetch keys. Directed identities contain validated public JWK
 structs and reject private key material. Inspection omits nested JWK/display data.
 Use `validate/1` after modifying a struct. `GrantRequest` enforces the restriction
-on directed identity with explicit interaction; matching the public JWK to the
-configured signing key belongs to the upcoming grant operation. This identity
+on directed identity with explicit interaction; `Grant.request/3` also matches
+the public JWK to the configured signing key. This identity
 codec makes no requests or changes to client configuration.
 
 ## Grant client display information
@@ -134,8 +179,8 @@ and JSON encoding omit nil fields and preserve the protocol name `logo_uri`.
 URI values are preserved and follow the schema's absolute-URI format, including
 `data:` image URIs. This self-asserted information is not verified by the SDK and
 no URI is fetched. `GrantClient` composes this metadata with either object identity.
-`GrantRequest` composes this identity data; grant HTTP operations remain under
-development. Display metadata does not change client-constructor options.
+`GrantRequest` composes this identity data for `Grant.request/3`.
+Display metadata does not change client-constructor options.
 
 ## Grant interaction requests
 
@@ -218,8 +263,7 @@ follows [JSON Schema equality](https://json-schema.org/draft/2020-12/json-schema
 including object-key order independence and equivalent numeric values in metadata.
 Errors carry indexed paths such as `access[1].card_authorization.pwk.key`, without
 retaining rejected payloads. Explicit JSON exports include card data.
-`GrantRequest` composes these access requests; grant HTTP operations remain under
-development.
+`GrantRequest` composes these access requests for `Grant.request/3`.
 
 Outgoing-payment limits are described by `OpenPayments.Types.OutgoingLimits`:
 
@@ -262,7 +306,7 @@ Inspection omits all card and working-key values, and validation errors contain
 safe paths such as `pwk.kvc`. Explicit map/JSON exports include the sensitive
 protocol data. These codecs perform no EMV decoding, PIN encryption, request-ID
 generation, replay correlation or network requests. `AccessOutgoing` composes
-these payloads; grant HTTP operations remain under development.
+these payloads for use in `Grant.request/3`.
 
 ## Grant subject information
 
@@ -285,8 +329,7 @@ Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding. The
 wire name remains `sub_ids`. Errors include safe paths such as `sub_ids[0].format`.
 Inspection omits identifiers and extension values; explicit protocol exports
 contain them. These types describe subject information without verifying identity
-or making requests. `GrantRequest` composes subject data; grant HTTP operations
-remain under development.
+or making requests. `GrantRequest` composes subject data for `Grant.request/3`.
 
 ## Complete grant-request data
 
@@ -319,8 +362,8 @@ JSON encoding preserve protocol field names and string/object identity forms.
 Inspection omits payload values; explicit exports include any card data, callback
 nonces and subject identifiers. Nested errors use paths such as
 `access_token.access[0].card_authorization.pwk.key`. These codecs make no requests,
-perform no signing-key/identity match and do not verify callbacks. The signed
-HTTP operation remains under development.
+perform no signing-key/identity match and do not verify callbacks.
+`Grant.request/3` performs grant initiation with signing and directed-key matching.
 
 ## Issued access-token data
 
@@ -337,7 +380,7 @@ those concerns belong to token use and management operations.
 
 Use `validate/1` after modifying typed token data. `to_map/1` and JSON encoding
 export protocol values, including the token and nested card results. Inspection
-shows only expiry metadata; errors retain safe field paths. Signed grant/token
+shows only expiry metadata; errors retain safe field paths. Token management
 operations remain under development.
 
 ## Grant continuation data
@@ -366,7 +409,8 @@ extensions are preserved at both object levels.
 Both types support `validate/1`, `to_map/1` and JSON encoding. Inspection hides
 credentials, continuation URLs and extensions; explicit exports include them.
 These codecs perform no waiting, polling or network requests. Continuation timing
-and outgoing URL/header policy belong to the forthcoming grant operations.
+and outgoing URL/header policy belong to continuation operations, which remain
+under development.
 
 ## Grant interaction response data
 
@@ -410,7 +454,7 @@ fields are preserved in `extensions`.
 `validate/1` revalidates typed children and branch rules. `to_map/1` and JSON
 encoding retain protocol field names and include credentials, callback values,
 subject identifiers and any card results. Inspection omits payload values and
-errors retain safe nested field paths. Signed grant operations remain under development.
+errors retain safe nested field paths. Use `Grant.request/3` for grant initiation.
 
 ## Grant continuation responses
 
@@ -431,7 +475,7 @@ Additional JSON fields are preserved in `extensions`. For this endpoint,
 response's interaction branch rules. `validate/1` revalidates every recognized
 typed child and extension data. `to_map/1` and JSON encoding include credentials,
 subject identifiers and any card results; inspection hides payload values, and
-errors retain safe nested field paths. Signed grant operations remain under development.
+errors retain safe nested field paths. The continuation operation remains under development.
 
 ## Grant continuation request data
 
@@ -449,7 +493,7 @@ is a separate choice for the forthcoming continuation operation.
 `validate/1` revalidates modified structs. `to_map/1` and JSON encoding export
 the reference and extension values; inspection hides them and errors retain safe
 field names. This codec does not verify a callback hash, generate a reference,
-wait, poll or send a request. Signed grant operations remain under development.
+wait, poll or send a request. The continuation operation remains under development.
 
 ## Public incoming payments
 
