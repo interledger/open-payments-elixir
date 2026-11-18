@@ -1060,7 +1060,8 @@ payment-pointer resolution or request-target restrictions. Creation time uses
 RFC 3339, preserving offsets and precision. Amount decimal spelling, permitted
 nested amount extensions and JSON metadata are retained. Additional top-level
 fields, including `updatedAt`, aliases and grant spent amounts, are rejected.
-The creation response with spent amounts has a separate schema.
+The creation response uses `OpenPayments.Types.OutgoingPaymentWithSpentAmounts`
+below.
 
 The official read/list examples round-trip unchanged. One standalone schema
 example omits required `receiveAmount` and has a receiver outside the declared
@@ -1074,6 +1075,51 @@ structs and all nested amounts; `to_map/1` and JSON encoding export without
 validation. Inspection shows only ID, failure status and creation time. Explicit
 exports include wallet, receiver, quote, amounts and metadata; errors contain
 safe paths such as `sent_amount.value`, without rejected data or unknown names.
+
+## Outgoing-payment creation response data
+
+`OpenPayments.Types.OutgoingPaymentWithSpentAmounts` models the HTTP 201 creation
+response. It has the same flat detail fields as `Types.OutgoingPayment`, plus
+optional typed `grant_spent_debit_amount` and `grant_spent_receive_amount`:
+
+```elixir
+{:ok, payment} = OpenPayments.Types.OutgoingPaymentWithSpentAmounts.from_map(%{
+  "id" => "https://resource.example.com/outgoing-payments/payment-1",
+  "walletAddress" => "https://wallet.example.com/alice",
+  "receiver" => "https://receiver.example.com/incoming-payments/payment-1",
+  "debitAmount" => %{"value" => "2500", "assetCode" => "USD", "assetScale" => 2},
+  "receiveAmount" => %{"value" => "2198", "assetCode" => "EUR", "assetScale" => 2},
+  "sentAmount" => %{"value" => "0", "assetCode" => "USD", "assetScale" => 2},
+  "grantSpentDebitAmount" => %{"value" => "7500", "assetCode" => "USD", "assetScale" => 2},
+  "failed" => false,
+  "createdAt" => "2026-11-18T09:20:50Z"
+})
+
+payment.grant_spent_debit_amount
+payment.grant_spent_receive_amount # nil when omitted
+:ok = OpenPayments.Types.OutgoingPaymentWithSpentAmounts.validate(payment)
+```
+
+Either, both or neither spent amount may appear. Omitted values become nil and
+are omitted on export; explicit null is invalid. These fields describe spending
+under the current grant and need not equal this payment's amounts. This differs
+from the separate grant-spent endpoint, whose fields are required and nullable.
+
+Shared payment fields use the same validation and spelling preservation as the
+read/list codec, including omission versus explicit false, optional quote URI and
+JSON-object metadata. The creation-response schema permits additional JSON fields,
+which remain in `extensions`; the read/list schema forbids them. For example,
+an undeclared `updatedAt` is retained as uninterpreted extension data here.
+Extensions cannot override declared protocol fields, even after manual edits.
+
+`validate/1` revalidates shared fields, all typed amounts and extensions;
+`to_map/1` and JSON encoding export protocol data without validation. Inspection
+shows only ID, failure status and creation time; explicit exports include all
+amounts, wallet, receiver, quote, metadata and extensions. Errors retain safe
+paths such as `grant_spent_debit_amount.value`, without rejected data or unknown
+names. The codec does not compare grant limits, assets, values or failure status,
+track grant spending, or make requests/payments. Outgoing-payment HTTP operations
+remain under development.
 
 ## Quote response data
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the outgoing-payment creation response with optional typed grant spent
+  amounts, shared detail validation, preserved JSON extensions and safe codecs.
 - Add the strict outgoing-payment response type with three typed amounts,
   optional failure/quote/metadata fields, JSON codecs and safe inspection/errors.
 - Add signed quote creation for all amount variants with typed/map payloads,
