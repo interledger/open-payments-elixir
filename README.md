@@ -1942,6 +1942,34 @@ After dependencies are installed, `mix test` runs without internet access,
 credentials, a database, or an external payment server. External integration tests
 are excluded by default.
 
+## Archive consumer verification
+
+Build and verify the package in a separate temporary Mix project:
+
+```sh
+elixir scripts/check_package.exs
+```
+
+The script builds a local Hex archive, checks its file layout and unpacks only its
+contents into the consumer's dependency directory. It resolves runtime dependencies
+from the declared constraints with a fresh consumer lockfile and clean production
+and test builds. It starts the production application and runs seven smoke tests
+for bundled specifications/checksums, dependency isolation, public operations,
+consolidated JSON encoders, OTP signing, unsigned discovery and signed requests.
+The standalone fixture lives under `scripts/package_consumer/`; the SDK's source
+checkout, dependency/build directories and lockfile are not copied into it.
+
+This check is separate from the SDK test suite and runs in the CI runtime matrix.
+Dependency installation may need internet access. With all selected package
+versions already in the Hex cache, use:
+
+```sh
+elixir scripts/check_package.exs --offline
+```
+
+The consumer tests use a local adapter with no external provider requests.
+Temporary archives, dependencies and build files are removed after the check.
+
 ## Complete simulated payment flows
 
 Run the acceptance scenarios independently or as part of the default test suite:

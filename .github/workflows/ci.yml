@@ -36,5 +36,5 @@ jobs:
       - run: mix check
       - run: mix test --cover
       - run: mix docs --warnings-as-errors
-      - run: mix hex.build
+      - run: elixir scripts/check_package.exs
       - run: mix dialyzer
