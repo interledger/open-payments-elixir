@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the strict outgoing-payment response type with three typed amounts,
+  optional failure/quote/metadata fields, JSON codecs and safe inspection/errors.
 - Add signed quote creation for all amount variants with typed/map payloads,
   shared collection URL rules, typed responses and no automatic replay.
 - Add signed quote reads with per-call raw/typed tokens, strict typed responses,

@@ -1024,6 +1024,57 @@ the outcome. Use `Quote.get/3` explicitly to read a returned quote ID. Inspectio
 omits wallet/receiver/amount/expiry data; explicit exports include it. Live
 signed-provider testing remains pending.
 
+## Outgoing-payment response data
+
+`OpenPayments.Types.OutgoingPayment` models the detailed read/list response:
+
+```elixir
+{:ok, payment} = OpenPayments.Types.OutgoingPayment.from_map(%{
+  "id" => "https://resource.example.com/outgoing-payments/payment-1",
+  "walletAddress" => "https://wallet.example.com/alice",
+  "receiver" => "https://receiver.example.com/incoming-payments/payment-1",
+  "debitAmount" => %{"value" => "2500", "assetCode" => "USD", "assetScale" => 2},
+  "receiveAmount" => %{"value" => "2198", "assetCode" => "EUR", "assetScale" => 2},
+  "sentAmount" => %{"value" => "1205", "assetCode" => "USD", "assetScale" => 2},
+  "failed" => false,
+  "createdAt" => "2026-11-18T09:20:50Z"
+})
+
+payment.debit_amount
+payment.receive_amount
+payment.sent_amount
+:ok = OpenPayments.Types.OutgoingPayment.validate(payment)
+```
+
+ID, wallet, receiver, all three amounts and creation time are required, without
+defaults. Optional `quoteId`, `failed` and JSON-object metadata become `quote_id`,
+`failed` and `metadata`. Omission becomes nil and is omitted on export; explicit
+null is invalid. An explicit `false` and empty metadata object are preserved.
+The schema's `failed: false` default does not insert a value when absent. This
+follows its required-field list; Node's generated TypeScript type instead marks
+`failed` as required because of the default.
+
+ID, wallet and quote fields use absolute-URI data validation; receiver uses the
+shared HTTP(S) incoming-payment URI pattern. Spelling is retained, without
+payment-pointer resolution or request-target restrictions. Creation time uses
+RFC 3339, preserving offsets and precision. Amount decimal spelling, permitted
+nested amount extensions and JSON metadata are retained. Additional top-level
+fields, including `updatedAt`, aliases and grant spent amounts, are rejected.
+The creation response with spent amounts has a separate schema.
+
+The official read/list examples round-trip unchanged. One standalone schema
+example omits required `receiveAmount` and has a receiver outside the declared
+pattern; tests reject it without repairing the bundled specification.
+
+This codec does not compare sent/debit assets, amount values or failure status,
+infer completion, enforce positivity, or calculate fees/exchange rates. Node's
+additional payment consistency checks belong to the HTTP operations, which remain
+under development. The type makes no requests. `validate/1` checks modified
+structs and all nested amounts; `to_map/1` and JSON encoding export without
+validation. Inspection shows only ID, failure status and creation time. Explicit
+exports include wallet, receiver, quote, amounts and metadata; errors contain
+safe paths such as `sent_amount.value`, without rejected data or unknown names.
+
 ## Quote response data
 
 `OpenPayments.Types.Quote` models the strict quote response used by GET and create:
