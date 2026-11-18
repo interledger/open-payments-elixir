@@ -42,7 +42,7 @@ may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
 followed. Grant/token management, incoming-payment operations, quote operations
-and outgoing-payment create/read operations are available; other resource
+and outgoing-payment create/read/list operations are available; other resource
 operations remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
@@ -102,7 +102,8 @@ Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4`,
 `OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`,
 `OpenPayments.Quote.get/3`, `OpenPayments.Quote.create/4`,
-`OpenPayments.OutgoingPayment.get/3` and `OpenPayments.OutgoingPayment.create/4`.
+`OpenPayments.OutgoingPayment.get/3`, `OpenPayments.OutgoingPayment.create/4` and
+`OpenPayments.OutgoingPayment.list/4`.
 Other authenticated resource operations remain under development.
 
 ## Requesting a grant
@@ -1070,8 +1071,7 @@ status 200 and safe paths such as `sent_amount` or `sent_amount.value`. Inspecti
 hides amounts, metadata and related references; explicit exports include them.
 The call makes no payment and does not cache, poll, refresh tokens, follow
 redirects or retry after HTTP/transport failures. Live signed-provider testing
-remains pending. Outgoing listing and grant-spent HTTP operations remain
-under development.
+remains pending. The grant-spent HTTP operation remains under development.
 
 ## Creating an outgoing payment
 
@@ -1128,6 +1128,54 @@ may occur after the server has created or started the payment. The caller must
 decide how to reconcile that outcome before another creation attempt. Use
 `OutgoingPayment.get/3` explicitly to read a returned resource ID; reads return
 the separate detailed type. Live signed-provider testing remains pending.
+
+## Listing outgoing payments
+
+Use the authenticated client, resource-server base, wallet filter and per-call
+token. Pagination is optional and accepts either a typed struct or protocol map:
+
+```elixir
+{:ok, page} =
+  OpenPayments.OutgoingPayment.list(client, wallet.resource_server, wallet.id,
+    access_token: "issued-access-token",
+    pagination: %OpenPayments.Types.Pagination{first: 25}
+  )
+
+page.result
+page.pagination.has_next_page
+page.pagination.end_cursor
+```
+
+The SDK signs one bodyless GNAP GET to the base's `/outgoing-payments` collection,
+preserving tenant paths and reusing a trailing slash. Base queries are rejected.
+It shares incoming-payment listing's strict token/options, pagination validation
+and Node-compatible form encoding: wallet-address first, then sorted pagination
+keys, with the whole query encoded before signing. Counts/cursors are sent only
+when supplied. Duplicate/unsupported options and explicit nil pagination are
+invalid. Raw and typed issued access tokens are accepted; server permissions,
+expiry and key binding remain server checks.
+
+The wallet filter follows the pinned required-string query schema, without URI
+validation, pointer resolution or substitution of client identity. Every UTF-8
+string, including empty, is sent. The SDK preserves an empty wallet-address query
+value, unlike Node's truthy-value omission. Usually supply the discovered wallet
+ID; the server decides filter meaning and permissions.
+
+HTTP 200 returns `Types.OutgoingPaymentPaginationResult`, with typed page metadata
+and detailed outgoing payments. Each item receives the same ordered Node asset,
+numeric cap and original-string failure checks as reads. Invalid schema or
+consistency data returns decoding/invalid_response/status200 with safe indexed
+paths such as `result[1].sent_amount`. All errors carry
+`operation: :list_outgoing_payments`. Spent amounts belong to creation responses
+and are not accepted as list item fields.
+
+For a next page, explicitly call with `first` and the returned end cursor; for a
+previous page, call with `last` and the start cursor. The SDK does not traverse,
+follow returned links, infer ordering or page counts, compare filter/result wallet
+identities, cache, retry, redirect or refresh tokens. Empty pages, duplicate
+items and independent page metadata are retained. Inspection hides payloads;
+explicit exports include cursors, references, amounts, metadata and extensions.
+Live signed-provider testing remains pending.
 
 ## Outgoing-payment response data
 
@@ -1407,8 +1455,7 @@ errors retain safe field paths without rejected values. This type makes no
 requests or automatic page traversal. Incoming-payment pages use
 `Types.IncomingPaymentPaginationResult` and `Types.OutgoingPaymentPaginationResult`
 below. Pass these arguments through the
-`pagination` option on `IncomingPayment.list/4`; outgoing-payment listing remains
-under development.
+`pagination` option on `IncomingPayment.list/4` or `OutgoingPayment.list/4`.
 
 ## Pagination metadata
 
@@ -1439,8 +1486,7 @@ protocol fields without validating. Inspection exposes only the flags; explicit
 exports include cursors. Errors retain safe field paths without rejected values.
 This type makes no requests or automatic page traversal. Query arguments use
 `Types.Pagination` above; incoming- and outgoing-payment pages use the result types below.
-Incoming-payment listing uses `IncomingPayment.list/4`; outgoing-payment listing
-remains under development.
+Listing uses `IncomingPayment.list/4` or `OutgoingPayment.list/4`.
 
 ## Outgoing-payment page data
 
@@ -1474,8 +1520,9 @@ The codec does not compare flags or cursors with item IDs, counts or ordering.
 It retains schema-valid asset, amount and failure-state combinations; Node's
 additional payment consistency checks belong to the HTTP operations. Missing
 `failed` stays nil. No wallet identity, completion or grant-spending inference
-is performed, and no requests or automatic page traversal occur. Outgoing-payment
-HTTP listing remains under development.
+is performed, and no requests or automatic page traversal occur. The HTTP
+operation `OutgoingPayment.list/4` uses this type and applies per-item Node
+consistency checks separately.
 
 `validate/1` revalidates typed metadata, each detailed payment and wrapper
 extensions; protocol maps or other response structs cannot replace typed children.
@@ -1893,7 +1940,7 @@ control characters. Authorization, content/signature headers and transport frami
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
 public client and wallet discovery, incoming-payment operations, quote operations
-and outgoing-payment create/read operations; other resource operations remain to
+and outgoing-payment create/read/list operations; other resource operations remain to
 be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

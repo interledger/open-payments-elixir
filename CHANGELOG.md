@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed outgoing-payment listing with typed pages, per-item Node consistency
+  checks and shared collection query/token handling for both payment resources.
 - Add typed outgoing-payment pages with pagination metadata, strict ordered
   payment items, preserved wrapper extensions and safe indexed validation errors.
 - Add signed outgoing-payment creation for quote/direct request forms with

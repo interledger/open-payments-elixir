@@ -8,16 +8,81 @@ defmodule OpenPayments.OutgoingPayment do
   enabled on the client. Redirects and automatic retries are disabled.
   Creation signs a POST to the outgoing-payments collection using either supported
   request form and returns typed payment data with optional grant spent amounts.
+  Listing signs a GET with wallet/pagination query arguments and returns one typed
+  page, applying the same payment consistency rules to each item.
   """
 
   alias OpenPayments.{Client, Error}
-  alias OpenPayments.Request.URL
+  alias OpenPayments.Request.{Collection, URL}
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.{AccessToken, CreateOutgoingPayment, OutgoingPaymentWithSpentAmounts}
+
+  alias OpenPayments.Types.{
+    AccessToken,
+    CreateOutgoingPayment,
+    OutgoingPaymentPaginationResult,
+    OutgoingPaymentWithSpentAmounts,
+    Pagination
+  }
+
   alias OpenPayments.Types.OutgoingPayment, as: PaymentData
 
   @get_operation :get_outgoing_payment
   @create_operation :create_outgoing_payment
+  @list_operation :list_outgoing_payments
+
+  @doc """
+  Lists one page of outgoing payments using a signed GET.
+
+  Supply the resource-server base and a separate wallet filter. The required
+  access_token option accepts the same raw string or typed token as `get/3`.
+  Optional pagination accepts a typed `Pagination` or protocol map; omission
+  sends no count/cursor defaults, while explicit nil is invalid. Duplicate or
+  unsupported options and per-call key/header overrides are rejected.
+
+  The wallet filter follows the pinned required-string query schema, without URI
+  validation, pointer resolution or substitution of client identity. Every UTF-8
+  string, including empty, is encoded and sent. Unlike Node's truthy filtering,
+  an empty wallet string is not silently omitted; server meaning/permission checks
+  still apply. Usually supply the discovered wallet ID.
+
+  Appends `/outgoing-payments` while preserving tenant paths and trailing slashes;
+  base queries are rejected. Uses the same Node URLSearchParams-compatible form
+  encoding and wallet-first/sorted pagination order as incoming-payment listing.
+  The entire query is encoded before signing the bodyless GNAP GET.
+
+  HTTP 200 returns `OutgoingPaymentPaginationResult` with strict detailed items.
+  Each item must pass the same ordered debit/sent consistency checks as `get/3`.
+  Schema/consistency failures return decoding/invalid_response/status200 with safe
+  indexed paths such as result[1].sent_amount; errors carry
+  `:list_outgoing_payments`. Creation spent-amount fields are not list item data.
+
+  This call does not compare filter/result identities, page sizes, flags/cursors
+  or ordering, cache state, traverse pages, follow links/redirects, retry, refresh
+  tokens or poll. Choose direction/cursor and credentials for each subsequent call.
+  Explicit exports include cursors, references, amounts, metadata and extensions.
+  """
+  @spec list(Client.t(), String.t(), String.t(), [
+          {:access_token, String.t() | AccessToken.t()} | {:pagination, Pagination.t() | map()}
+        ]) :: {:ok, OutgoingPaymentPaginationResult.t()} | {:error, Error.t()}
+  def list(client, base_url, wallet_address, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, url, token} <-
+           Collection.prepare(
+             base_url,
+             Client.allow_http?(client),
+             wallet_address,
+             opts,
+             "outgoing-payments"
+           ),
+         {:ok, response} <- Client.request_signed(client, :get, url, access_token: token),
+         {:ok, data} <- JSON.decode(response, [200], @list_operation),
+         {:ok, page} <- decode_page(data, response.status) do
+      {:ok, page}
+    else
+      {:error, error} -> {:error, %{error | operation: @list_operation}}
+    end
+  end
 
   @doc """
   Creates an outgoing payment using one signed POST and a validated request form.
@@ -127,6 +192,40 @@ defmodule OpenPayments.OutgoingPayment do
              description: "Invalid Open Payments outgoing-payment response"
          }}
     end
+  end
+
+  defp decode_page(data, status) do
+    with {:ok, page} <- OutgoingPaymentPaginationResult.from_map(data),
+         :ok <- consistent_page(page.result) do
+      {:ok, page}
+    else
+      {:error, error} ->
+        {:error,
+         %{
+           error
+           | kind: :decoding,
+             status: status,
+             code: "invalid_response",
+             description: "Invalid Open Payments outgoing-payment list response"
+         }}
+    end
+  end
+
+  defp consistent_page(payments) do
+    payments
+    |> Enum.with_index()
+    |> Enum.reduce_while(:ok, fn {payment, index}, :ok ->
+      case consistent(payment) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, error} ->
+          errors =
+            Enum.map(error.validation_errors, &%{&1 | field: "result[#{index}].#{&1.field}"})
+
+          {:halt, {:error, %{error | validation_errors: errors}}}
+      end
+    end)
   end
 
   defp consistent(%{debit_amount: debit, sent_amount: sent, failed: failed}) do

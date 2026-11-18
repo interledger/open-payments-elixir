@@ -20,6 +20,7 @@ defmodule OpenPayments.Client do
   `OpenPayments.Quote.create/4` creates a quote.
   `OpenPayments.OutgoingPayment.get/3` reads an outgoing payment.
   `OpenPayments.OutgoingPayment.create/4` creates an outgoing payment.
+  `OpenPayments.OutgoingPayment.list/4` fetches one page of outgoing payments.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -94,6 +95,7 @@ defmodule OpenPayments.Client do
   Quotes use `OpenPayments.Quote.get/3` and `OpenPayments.Quote.create/4`.
   Outgoing payments use `OpenPayments.OutgoingPayment.get/3` and
   `OpenPayments.OutgoingPayment.create/4`.
+  `OpenPayments.OutgoingPayment.list/4` lists them with per-call pagination.
   Other authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}
