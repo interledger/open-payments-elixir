@@ -433,6 +433,24 @@ typed child and extension data. `to_map/1` and JSON encoding include credentials
 subject identifiers and any card results; inspection hides payload values, and
 errors retain safe nested field paths. Signed grant operations remain under development.
 
+## Grant continuation request data
+
+`OpenPayments.Types.GrantContinuationRequest.from_map/1` decodes the JSON payload
+for continuing a grant. Optional `interact_ref` is an opaque string; omission
+becomes nil and explicit null is rejected. No UUID, length or alphabet rule is
+imposed. Other JSON fields are retained in `extensions`, including camel-case
+`interactRef`, which is treated as an extension rather than an alias.
+
+The shared schema permits an empty object, which this codec accepts. Node's
+TypeScript body type requires the reference when a body is supplied. An empty
+Elixir struct exports as `{}`; `from_map(nil)` is invalid. Omitting an HTTP body
+is a separate choice for the forthcoming continuation operation.
+
+`validate/1` revalidates modified structs. `to_map/1` and JSON encoding export
+the reference and extension values; inspection hides them and errors retain safe
+field names. This codec does not verify a callback hash, generate a reference,
+wait, poll or send a request. Signed grant operations remain under development.
+
 ## Public incoming payments
 
 Read the public state of an incoming payment using its complete resource URL:
