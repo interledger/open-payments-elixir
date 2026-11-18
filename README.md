@@ -41,8 +41,9 @@ HTTPS without user-info, explicit port, query or fragment. HTTP development URLs
 may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
-followed. Grant/token management and authenticated incoming-payment reads are
-available; other authenticated resource operations remain under development.
+followed. Grant/token management, incoming-payment operations, quote operations
+and outgoing-payment reads are available; other resource operations remain under
+development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -100,7 +101,8 @@ Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as do
 `OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4`,
 `OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`,
-`OpenPayments.Quote.get/3` and `OpenPayments.Quote.create/4`.
+`OpenPayments.Quote.get/3`, `OpenPayments.Quote.create/4` and
+`OpenPayments.OutgoingPayment.get/3`.
 Other authenticated resource operations remain under development.
 
 ## Requesting a grant
@@ -1024,6 +1026,53 @@ the outcome. Use `Quote.get/3` explicitly to read a returned quote ID. Inspectio
 omits wallet/receiver/amount/expiry data; explicit exports include it. Live
 signed-provider testing remains pending.
 
+## Reading an outgoing payment
+
+Use the authenticated client, the complete resource URL and a per-call token:
+
+```elixir
+{:ok, payment} =
+  OpenPayments.OutgoingPayment.get(client, outgoing_payment_url,
+    access_token: "issued-access-token"
+  )
+
+payment.debit_amount
+payment.receive_amount
+payment.sent_amount
+```
+
+The token may be a raw string or `OpenPayments.Types.AccessToken`. Typed tokens
+are revalidated before their value is used; continuation credentials cannot
+substitute. The call accepts only one `access_token` option. The server checks
+permissions, expiry and key binding; the SDK does not infer them from token
+metadata or store tokens on the client.
+
+Sends one signed bodyless GNAP GET to the complete URL. Paths and queries remain
+opaque, no path is appended and no related wallet/quote/receiver is fetched.
+Nondefault HTTPS ports are supported; HTTP requires client opt-in. Request-target
+and token68 rules apply. HTTP 200 returns `Types.OutgoingPayment`; other success
+statuses are rejected. All errors carry `operation: :get_outgoing_payment`.
+
+After schema validation, the SDK applies Node's outgoing-payment checks:
+
+- Debit and sent amounts must use the same asset code and scale.
+- Sent value cannot exceed debit value, compared numerically with exact integers.
+- Identical debit/sent value strings cannot accompany `failed: true`.
+
+The last rule deliberately follows Node's original-string comparison: `"0005"`
+and `"5"` are numerically equal but are distinct strings for that failure check.
+Their spelling is preserved. Receive assets may differ, and omitted `failed`
+remains nil. No positivity, completion-state, fee/FX or response/request identity
+rule is inferred.
+
+Schema and consistency errors return `kind: :decoding`, `code: "invalid_response"`,
+status 200 and safe paths such as `sent_amount` or `sent_amount.value`. Inspection
+hides amounts, metadata and related references; explicit exports include them.
+The call makes no payment and does not cache, poll, refresh tokens, follow
+redirects or retry after HTTP/transport failures. Live signed-provider testing
+remains pending. Outgoing creation, listing and grant-spent HTTP operations remain
+under development.
+
 ## Outgoing-payment response data
 
 `OpenPayments.Types.OutgoingPayment` models the detailed read/list response:
@@ -1069,8 +1118,8 @@ pattern; tests reject it without repairing the bundled specification.
 
 This codec does not compare sent/debit assets, amount values or failure status,
 infer completion, enforce positivity, or calculate fees/exchange rates. Node's
-additional payment consistency checks belong to the HTTP operations, which remain
-under development. The type makes no requests. `validate/1` checks modified
+additional payment consistency checks run in `OutgoingPayment.get/3`, separately
+from this type. The type makes no requests. `validate/1` checks modified
 structs and all nested amounts; `to_map/1` and JSON encoding export without
 validation. Inspection shows only ID, failure status and creation time. Explicit
 exports include wallet, receiver, quote, amounts and metadata; errors contain
@@ -1126,7 +1175,8 @@ export without validation, defaults or lookups.
 Inspection hides all payload fields. Explicit exports include wallet, quote or
 incoming-payment references, amount and metadata; errors contain safe paths such
 as `debit_amount.value`, without rejected values or unknown names. This type makes
-no requests or payments. Outgoing-payment HTTP operations remain under development.
+no requests or payments. `OutgoingPayment.get/3` reads existing payments; creation
+and other outgoing-payment HTTP operations remain under development.
 
 ## Outgoing-payment creation response data
 
@@ -1170,8 +1220,9 @@ shows only ID, failure status and creation time; explicit exports include all
 amounts, wallet, receiver, quote, metadata and extensions. Errors retain safe
 paths such as `grant_spent_debit_amount.value`, without rejected data or unknown
 names. The codec does not compare grant limits, assets, values or failure status,
-track grant spending, or make requests/payments. Outgoing-payment HTTP operations
-remain under development.
+track grant spending, or make requests/payments. `OutgoingPayment.get/3` reads
+existing payments; creation and other outgoing-payment HTTP operations remain
+under development.
 
 ## Quote response data
 
@@ -1742,8 +1793,8 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, incoming-payment operations and quote operations;
-other authenticated resource operations remain to be implemented.
+public client and wallet discovery, incoming-payment operations, quote operations
+and outgoing-payment reads; other resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.
 It has no automatic retries, redirects, request re-encoding, response decoding,

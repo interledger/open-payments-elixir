@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed outgoing-payment reads with per-call raw/typed tokens, typed
+  responses, Node payment consistency checks and operation-specific safe errors.
 - Add strict outgoing-payment creation payloads for quote and incoming-payment
   forms, with typed debit amounts, metadata, JSON codecs and safe inspection.
 - Add the outgoing-payment creation response with optional typed grant spent
