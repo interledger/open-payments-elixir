@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add strict outgoing-payment creation payloads for quote and incoming-payment
+  forms, with typed debit amounts, metadata, JSON codecs and safe inspection.
 - Add the outgoing-payment creation response with optional typed grant spent
   amounts, shared detail validation, preserved JSON extensions and safe codecs.
 - Add the strict outgoing-payment response type with three typed amounts,

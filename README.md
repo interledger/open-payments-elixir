@@ -1076,6 +1076,58 @@ validation. Inspection shows only ID, failure status and creation time. Explicit
 exports include wallet, receiver, quote, amounts and metadata; errors contain
 safe paths such as `sent_amount.value`, without rejected data or unknown names.
 
+## Outgoing-payment creation request data
+
+`OpenPayments.Types.CreateOutgoingPayment` models both creation request forms:
+
+```elixir
+from_quote = %OpenPayments.Types.CreateOutgoingPayment{
+  wallet_address: "https://wallet.example.com/alice",
+  quote_id: "https://resource.example.com/quotes/quote-1"
+}
+
+{:ok, amount} = OpenPayments.Types.Amount.from_map(%{
+  "value" => "2500", "assetCode" => "USD", "assetScale" => 2
+})
+
+from_incoming = %OpenPayments.Types.CreateOutgoingPayment{
+  wallet_address: "https://wallet.example.com/alice",
+  incoming_payment: "https://receiver.example.com/incoming-payments/payment-1",
+  debit_amount: amount,
+  metadata: %{"externalRef" => "INV-12876"}
+}
+
+:ok = OpenPayments.Types.CreateOutgoingPayment.validate(from_quote)
+:ok = OpenPayments.Types.CreateOutgoingPayment.validate(from_incoming)
+```
+
+Supply `walletAddress` and either `quoteId`, or both `incomingPayment` and
+`debitAmount` in protocol maps passed to `from_map/1`. These forms are mutually
+exclusive, matching the pinned `oneOf` branches and Node's creation argument
+union. Missing references/amounts and mixed forms are rejected. Map field presence
+selects the form: adding an inactive field with null is invalid. Typed nil means
+omission; a direct incoming-payment request still requires its debit amount.
+
+All three URI fields use absolute-URI data validation and retain their spelling.
+The request's `incomingPayment` has no incoming-payment path pattern in the pinned
+schema, unlike response `receiver` fields. This codec does not resolve payment
+pointers, impose request-target policies on URI data, fetch related resources or
+infer amounts. The server checks quote validity, authorization and debit-asset
+compatibility with the sending wallet. Zero amounts remain schema-valid; no
+positivity, fee or exchange-rate rule is added here.
+
+Optional metadata must be a JSON object; omission becomes nil and empty objects
+are retained. Explicit nulls and undeclared top-level fields, including response
+fields and snake_case JSON aliases, are rejected. Typed debit amounts preserve
+decimal spelling and permitted nested extensions. `validate/1` revalidates the
+form, fields and nested amount after manual edits. `to_map/1` and JSON encoding
+export without validation, defaults or lookups.
+
+Inspection hides all payload fields. Explicit exports include wallet, quote or
+incoming-payment references, amount and metadata; errors contain safe paths such
+as `debit_amount.value`, without rejected values or unknown names. This type makes
+no requests or payments. Outgoing-payment HTTP operations remain under development.
+
 ## Outgoing-payment creation response data
 
 `OpenPayments.Types.OutgoingPaymentWithSpentAmounts` models the HTTP 201 creation
