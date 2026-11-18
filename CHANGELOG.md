@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed grant continuation responses for token, subject, combined and
+  continuation-only results, with presence predicates, nested validation and JSON codecs.
 - Add typed initial grant responses with pending/approved predicates, nested
   validation, subject/extension preservation and redacted inspection/errors.
 - Add typed pending-grant interaction instructions with redirect/finish validation,

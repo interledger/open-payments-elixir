@@ -410,8 +410,28 @@ fields are preserved in `extensions`.
 `validate/1` revalidates typed children and branch rules. `to_map/1` and JSON
 encoding retain protocol field names and include credentials, callback values,
 subject identifiers and any card results. Inspection omits payload values and
-errors retain safe nested field paths. Continuation-response composition and
-signed grant operations remain under development.
+errors retain safe nested field paths. Signed grant operations remain under development.
+
+## Grant continuation responses
+
+`OpenPayments.Types.GrantContinuationResponse.from_map/1` decodes a response to
+continuing a grant. Required `continue` becomes a typed `Continuation`. Optional
+`access_token` and `subject` become typed `AccessToken` and `Subject` data. Either,
+both or neither result may be present. Omission becomes nil; explicit null is
+rejected for these recognized fields.
+
+Use `has_access_token?/1` and `has_subject?/1` to check typed result presence.
+`continuation_only?/1` reports that both recognized result fields are absent.
+These predicates do not revalidate modified children, interpret extensions,
+verify callbacks or infer server lifecycle state. They do not establish resource
+authorization. No waiting or polling occurs during decoding.
+
+Additional JSON fields are preserved in `extensions`. For this endpoint,
+`interact` is an undeclared extension, retained without applying the initial grant
+response's interaction branch rules. `validate/1` revalidates every recognized
+typed child and extension data. `to_map/1` and JSON encoding include credentials,
+subject identifiers and any card results; inspection hides payload values, and
+errors retain safe nested field paths. Signed grant operations remain under development.
 
 ## Public incoming payments
 
