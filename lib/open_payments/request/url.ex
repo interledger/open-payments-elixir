@@ -4,6 +4,28 @@ defmodule OpenPayments.Request.URL do
   alias OpenPayments.Error
   alias OpenPayments.Types.Validation
 
+  # Internal callers supply a fixed resource path; queries on the base would
+  # make simple appending ambiguous, including a trailing empty query marker.
+  @spec append_path(String.t(), boolean(), String.t()) :: {:ok, String.t()} | {:error, Error.t()}
+  def append_path(base_url, allow_http, path) do
+    with {:ok, url} <- prepare(base_url, allow_http),
+         {:ok, %URI{query: nil}} <- URI.new(base_url) do
+      {:ok, url <> if(String.ends_with?(url, "/"), do: path, else: "/" <> path)}
+    else
+      {:error, %Error{} = error} ->
+        {:error, error}
+
+      _other ->
+        {:error,
+         %Error{
+           kind: :validation,
+           validation_errors: [
+             %{field: :url, message: "must not contain a query when appending a resource path"}
+           ]
+         }}
+    end
+  end
+
   @spec prepare(String.t(), boolean()) :: {:ok, String.t()} | {:error, Error.t()}
   def prepare(url, allow_http) do
     with true <- Validation.absolute_uri?(url),

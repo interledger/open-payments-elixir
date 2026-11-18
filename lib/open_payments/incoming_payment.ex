@@ -115,7 +115,7 @@ defmodule OpenPayments.IncomingPayment do
          {:ok, _public_key} <- Client.signing_public_jwk(client),
          {:ok, token} <- Client.resource_access_token(opts),
          {:ok, request} <- create_payload(payload),
-         {:ok, url} <- append_path(base_url, Client.allow_http?(client), "incoming-payments"),
+         {:ok, url} <- URL.append_path(base_url, Client.allow_http?(client), "incoming-payments"),
          {:ok, response} <-
            Client.request_signed(client, :post, url, access_token: token, json: request),
          {:ok, data} <- JSON.decode(response, [201], @create_operation),
@@ -155,7 +155,7 @@ defmodule OpenPayments.IncomingPayment do
     with {:ok, client} <- Client.validate(client),
          {:ok, _public_key} <- Client.signing_public_jwk(client),
          {:ok, token} <- Client.resource_access_token(opts),
-         {:ok, url} <- append_path(payment_url, Client.allow_http?(client), "complete"),
+         {:ok, url} <- URL.append_path(payment_url, Client.allow_http?(client), "complete"),
          {:ok, response} <- Client.request_signed(client, :post, url, access_token: token),
          {:ok, data} <- JSON.decode(response, [200], @complete_operation),
          {:ok, payment} <- decode_completed(data, response.status) do
@@ -283,7 +283,7 @@ defmodule OpenPayments.IncomingPayment do
   end
 
   defp list_url(base_url, allow_http, wallet_address, pagination) do
-    with {:ok, url} <- append_path(base_url, allow_http, "incoming-payments") do
+    with {:ok, url} <- URL.append_path(base_url, allow_http, "incoming-payments") do
       query =
         pagination
         |> Pagination.to_map()
@@ -295,16 +295,6 @@ defmodule OpenPayments.IncomingPayment do
         |> String.replace("%2A", "*")
 
       {:ok, url <> "?" <> query}
-    end
-  end
-
-  defp append_path(base_url, allow_http, path) do
-    with {:ok, url} <- URL.prepare(base_url, allow_http),
-         {:ok, %URI{query: nil}} <- URI.new(base_url) do
-      {:ok, url <> if(String.ends_with?(url, "/"), do: path, else: "/" <> path)}
-    else
-      {:error, %Error{} = error} -> {:error, error}
-      _other -> invalid_payment(:url, "must not contain a query when appending a resource path")
     end
   end
 

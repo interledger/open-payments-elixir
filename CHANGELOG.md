@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed quote creation for all amount variants with typed/map payloads,
+  shared collection URL rules, typed responses and no automatic replay.
 - Add signed quote reads with per-call raw/typed tokens, strict typed responses,
   operation-specific errors and no automatic replay.
 - Add quote creation payloads for fixed-debit, fixed-receive and receiver-inferred

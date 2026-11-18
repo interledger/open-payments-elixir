@@ -99,9 +99,9 @@ per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as do
 `OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4`,
-`OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`
-and `OpenPayments.Quote.get/3`. Other authenticated resource operations remain
-under development.
+`OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`,
+`OpenPayments.Quote.get/3` and `OpenPayments.Quote.create/4`.
+Other authenticated resource operations remain under development.
 
 ## Requesting a grant
 
@@ -969,8 +969,60 @@ status 200 and safe paths such as `receive_amount.asset_scale`. Errors carry
 `operation: :get_quote`; HTTP and transport failures retain their own kinds.
 
 Inspection omits wallet, receiver, amounts and expiry; explicit map/JSON exports
-include them. Quote creation remains under development. Live signed-provider
-testing remains pending.
+include them. Creation uses `Quote.create/4` below. Live signed-provider testing
+remains pending.
+
+## Creating quotes
+
+Create a quote using the sender wallet's resource-server base URL and an
+authenticated client/token authorized to create quotes:
+
+```elixir
+request = %OpenPayments.Types.CreateQuote{
+  wallet_address: wallet.id,
+  receiver: incoming_payment.id,
+  method: "ilp"
+}
+
+{:ok, quote} =
+  OpenPayments.Quote.create(client, wallet.resource_server, request,
+    access_token: issued_token
+  )
+
+quote.debit_amount
+quote.receive_amount
+```
+
+This example leaves the amount to the receiver's incoming amount. For other
+variants, supply a typed `debit_amount` or `receive_amount`, never both.
+The payload also accepts a string-keyed protocol map. All payloads and nested
+typed amounts are validated before HTTP. The server checks that an amountless
+receiver supplies an amount, relevant asset compatibility and permissions. The
+SDK makes no wallet/receiver lookup or amount inference, and applies no defaults.
+A schema-valid payload can still receive HTTP 400 if no receiver amount is available.
+
+The SDK appends `/quotes` to the resource-server base, preserving tenant paths
+and reusing an existing trailing slash. Supply a base URL, rather than a collection
+or quote URL. Base queries, including an empty `?`, user-info and fragments are
+rejected. HTTPS ports are accepted; HTTP requires explicit development opt-in.
+These path rules match incoming-payment collection creation and handle trailing
+slashes explicitly, unlike Node's direct string concatenation.
+
+The POST signs the exact JSON bytes and GNAP authorization. The required
+`access_token` option uses the same string/typed token and strict option rules as
+reads. HTTP 201 returns `{:ok, %OpenPayments.Types.Quote{}}`; other success statuses
+are decoding errors, following the pinned create operation's status contract.
+The strict response codec is shared with reads. Following Node, no extra FX,
+fee, amount-order, positivity, local-expiry or request/response equality rule is
+added. Schema failures return `kind: :decoding`, `code: "invalid_response"`, status
+201 and safe field paths. Errors carry `operation: :create_quote`.
+
+Creation does not send an outgoing payment, follow redirects, retry, refresh
+tokens, cache or automatically read back the resource. A timeout or dropped
+connection may occur after quote creation; the caller decides how to reconcile
+the outcome. Use `Quote.get/3` explicitly to read a returned quote ID. Inspection
+omits wallet/receiver/amount/expiry data; explicit exports include it. Live
+signed-provider testing remains pending.
 
 ## Quote response data
 
@@ -1018,9 +1070,8 @@ structs and both nested amounts; `to_map/1` and JSON encoding export protocol da
 without validating. Inspection shows only ID, method and creation time; explicit
 exports include wallet, receiver, amounts and expiry. Errors retain safe paths
 such as `receive_amount.asset_scale`, without rejected values or unknown names.
-This type makes no requests or payments. `Quote.get/3` returns it after a signed
-read. Creation payloads use `Types.CreateQuote` below; signed creation remains
-under development.
+This type makes no requests or payments. `Quote.get/3` and `Quote.create/4` return
+it after signed requests. Creation payloads use `Types.CreateQuote` below.
 
 ## Quote creation request data
 
@@ -1065,8 +1116,7 @@ variant and nested amount. `to_map/1` and JSON encoding export protocol fields
 without validating. Inspection shows only the method; explicit exports include
 wallet, receiver and amount data. Errors retain safe paths such as
 `debit_amount.value` without rejected values or unknown names. This type makes
-no HTTP requests. Signed reads use `Quote.get/3`; quote creation remains under
-development.
+no HTTP requests. Use `Quote.create/4` to create a quote and `Quote.get/3` to read it.
 
 ## Pagination query arguments
 
@@ -1543,7 +1593,7 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, incoming-payment operations and quote reads;
+public client and wallet discovery, incoming-payment operations and quote operations;
 other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

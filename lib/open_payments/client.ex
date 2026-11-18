@@ -17,6 +17,7 @@ defmodule OpenPayments.Client do
   `OpenPayments.IncomingPayment.complete/3` marks them complete.
   `OpenPayments.IncomingPayment.list/4` fetches one page of incoming payments.
   `OpenPayments.Quote.get/3` reads a quote.
+  `OpenPayments.Quote.create/4` creates a quote.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -88,7 +89,7 @@ defmodule OpenPayments.Client do
   Authenticated incoming-payment operations use `OpenPayments.IncomingPayment.get/3`,
   `OpenPayments.IncomingPayment.create/4`, `OpenPayments.IncomingPayment.complete/3`
   and `OpenPayments.IncomingPayment.list/4`.
-  Quote reads use `OpenPayments.Quote.get/3`.
+  Quotes use `OpenPayments.Quote.get/3` and `OpenPayments.Quote.create/4`.
   Other authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}
