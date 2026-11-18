@@ -98,7 +98,8 @@ Client inspection omits the identity, key and custom headers. Access tokens rema
 per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as does
-`OpenPayments.IncomingPayment.get/3`. Other authenticated resource operations
+`OpenPayments.IncomingPayment.get/3` and `OpenPayments.IncomingPayment.create/4`.
+Other authenticated resource operations
 remain under development.
 
 ## Requesting a grant
@@ -766,8 +767,62 @@ signing, HTTP or transport kinds. Amount values, timestamps, the requested URL a
 token metadata are not compared for equality with the returned resource.
 
 Inspection hides shared secrets, metadata and extensions; explicit map/JSON
-exports include them. Creation, completion and listing remain under development.
+exports include them. Completion and listing remain under development.
 Live signed-provider testing remains pending.
+
+## Creating incoming payments
+
+Use the wallet's discovered resource-server base URL and an authenticated client
+with an access token authorized to create incoming payments:
+
+```elixir
+{:ok, amount} = OpenPayments.Types.Amount.new("2500", wallet.asset_code, wallet.asset_scale)
+
+request = %OpenPayments.Types.CreateIncomingPayment{
+  wallet_address: wallet.id,
+  incoming_amount: amount,
+  metadata: %{"externalRef" => "invoice-1"}
+}
+
+{:ok, payment} =
+  OpenPayments.IncomingPayment.create(client, wallet.resource_server, request,
+    access_token: issued_token
+  )
+
+payment.id
+payment.methods
+```
+
+The payload also accepts a string-keyed protocol map. Typed payloads and nested
+amounts are revalidated before HTTP. `walletAddress` is required; optional amount,
+expiry and metadata follow the strict creation payload described below. Omitted
+values stay omitted, and empty metadata is retained. No wallet discovery request
+is added and payment pointers are not converted inside the payload. The server
+enforces wallet asset compatibility and grant permissions.
+
+The SDK appends `/incoming-payments` to the resource-server base, preserves tenant
+paths and reuses an existing trailing slash. Supply a base URL rather than a
+collection or individual payment URL. Queries, including an empty `?`, are
+rejected before HTTP, as are user-info and fragments. HTTPS ports are accepted;
+HTTP requires explicit development opt-in. Compared with Node's direct string
+concatenation, trailing slashes are handled explicitly and query-bearing bases
+are rejected to prevent appending the collection path into a query.
+
+The POST signs the exact JSON bytes and GNAP authorization. `access_token` uses
+the same string/typed token and strict option rules as authenticated reads.
+HTTP 201 returns `{:ok, %OpenPayments.Types.IncomingPaymentWithMethods{}}`.
+Following Node's creation checks, received funds must be numerically zero
+(including leading-zero decimal strings), `completed` must be false, and a present
+incoming amount must share the received amount's asset code and scale. Invalid
+success responses return `kind: :decoding`, `code: "invalid_response"` and status
+201. Errors carry `operation: :create_incoming_payment` and safe field paths.
+No request/response identity, amount or expiry equality check is added.
+
+Creation does not follow redirects, refresh tokens or retry automatically.
+A timeout or dropped connection can occur after the server creates a payment;
+the caller decides how to reconcile that outcome. Inspection hides returned ILP
+shared secrets; explicit map/JSON exports include them. Live signed-provider
+testing remains pending.
 
 ## Detailed incoming-payment data
 
@@ -804,13 +859,13 @@ and JSON encoding retain protocol field names. Inspection omits amounts, metadat
 and extension values; explicit exports include them. Errors expose safe field
 paths such as `incoming_amount.value`. This codec does not compare asset identities,
 amount values or timestamps; Node-style payment consistency checks belong to the
-forthcoming operations.
+resource operations.
 
 Payment methods are not declared by this detailed schema, so any `methods` field
 is retained as an uninterpreted extension. Use `Types.IncomingPaymentWithMethods`
 for the authenticated read/create schema, which additionally requires typed
-payment methods. `IncomingPayment.get/3` uses that variant for authenticated reads;
-creation, completion and listing remain under development.
+payment methods. `IncomingPayment.get/3` and `IncomingPayment.create/4` use that
+variant; completion and listing remain under development.
 
 ## Incoming-payment data with payment methods
 
@@ -833,7 +888,8 @@ extensions; inspection omits those values. URI/timestamp spelling and optional
 field rules follow the detailed type. The codec makes no requests, connects to
 no payment method and performs no asset/amount/time consistency checks.
 `Types.CreateIncomingPayment` models the create payload. `IncomingPayment.get/3`
-returns this response type; creation, completion and listing remain under development.
+and `IncomingPayment.create/4` return this response type; completion and listing
+remain under development.
 
 ## Incoming-payment create request data
 
@@ -867,7 +923,7 @@ needs wallet/operation context and is outside this standalone codec.
 Use `validate/1` after manual changes. `to_map/1` and JSON encoding export protocol
 fields without validating. Inspection exposes only expiry metadata; errors retain
 safe paths such as `incoming_amount.asset_scale` without rejected values. The type
-makes no requests. The incoming-payment creation operation remains under development.
+makes no requests. Pass the payload to `IncomingPayment.create/4` to create a payment.
 
 ## ILP payment methods
 
@@ -880,8 +936,9 @@ secret length or establish a STREAM connection.
 
 Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly include
 it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
-after manually constructing or modifying a struct. `IncomingPayment.get/3` returns
-typed methods; incoming-payment creation, completion and listing remain under development.
+after manually constructing or modifying a struct. `IncomingPayment.get/3` and
+`IncomingPayment.create/4` return typed methods; completion and listing remain
+under development.
 
 ## Amounts
 
@@ -1134,7 +1191,7 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, plus authenticated incoming-payment reads;
+public client and wallet discovery, plus incoming-payment reads and creation;
 other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

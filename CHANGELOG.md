@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed incoming-payment creation with typed/map payloads, per-call tokens,
+  tenant-aware collection URLs and Node-style creation response checks.
 - Add signed authenticated incoming-payment reads with per-call string/typed tokens,
   typed responses, amount-asset consistency checks and operation-specific errors.
 - Add the incoming-payment create request type with strict fields, typed optional

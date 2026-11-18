@@ -10,14 +10,63 @@ defmodule OpenPayments.IncomingPayment do
 
   Authenticated reads use a signed GET with a required per-call access token and
   return detailed data with typed payment methods and consistent amount assets.
+  Creation signs a POST to the resource server's incoming-payment collection and
+  additionally requires zero received funds and completed false in the response.
   """
 
   alias OpenPayments.{Client, Error}
+  alias OpenPayments.Request.URL
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.{AccessToken, IncomingPaymentWithMethods, PublicIncomingPayment}
+
+  alias OpenPayments.Types.{
+    AccessToken,
+    CreateIncomingPayment,
+    IncomingPaymentWithMethods,
+    PublicIncomingPayment
+  }
 
   @operation :get_public_incoming_payment
   @get_operation :get_incoming_payment
+  @create_operation :create_incoming_payment
+
+  @doc """
+  Creates an incoming payment using a signed POST and a per-call access token.
+
+  Supply the resource-server base URL, a typed `CreateIncomingPayment` or a
+  string-keyed protocol map, and the required `access_token` option accepted by
+  `get/3`. The SDK appends `/incoming-payments`, preserving tenant paths and
+  reusing an existing trailing slash. Base URLs with queries are rejected.
+  HTTPS is required unless HTTP was explicitly enabled on the client.
+
+  Success requires HTTP 201 and a detailed response with payment methods, zero
+  received funds, completed false and consistent incoming/received assets,
+  following Node's creation checks. Invalid success responses return
+  decoding/invalid_response with status 201. Errors carry `:create_incoming_payment`.
+
+  Wallet/amount/expiry/metadata values are sent as supplied. No wallet is fetched
+  to compare its assets; the server enforces wallet asset compatibility and grant
+  permissions. The response is not compared with request values. No automatic
+  retry occurs, including after a timeout; a failed call may have created a
+  payment. Explicit response exports include ILP shared secrets.
+  """
+  @spec create(Client.t(), String.t(), CreateIncomingPayment.t() | map(), [
+          {:access_token, String.t() | AccessToken.t()}
+        ]) :: {:ok, IncomingPaymentWithMethods.t()} | {:error, Error.t()}
+  def create(client, base_url, payload, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, token} <- Client.resource_access_token(opts),
+         {:ok, request} <- create_payload(payload),
+         {:ok, url} <- create_url(base_url, Client.allow_http?(client)),
+         {:ok, response} <-
+           Client.request_signed(client, :post, url, access_token: token, json: request),
+         {:ok, data} <- JSON.decode(response, [201], @create_operation),
+         {:ok, payment} <- decode_authenticated(data, response.status, :create) do
+      {:ok, payment}
+    else
+      {:error, error} -> {:error, %{error | operation: @create_operation}}
+    end
+  end
 
   @doc """
   Fetches authenticated incoming-payment details using a signed GET.
@@ -96,8 +145,26 @@ defmodule OpenPayments.IncomingPayment do
     end
   end
 
-  defp decode_authenticated(data, status) do
+  defp create_payload(%CreateIncomingPayment{} = request) do
+    with :ok <- CreateIncomingPayment.validate(request), do: {:ok, request}
+  end
+
+  defp create_payload(payload), do: CreateIncomingPayment.from_map(payload)
+
+  defp create_url(base_url, allow_http) do
+    with {:ok, url} <- URL.prepare(base_url, allow_http),
+         {:ok, %URI{query: nil}} <- URI.new(base_url) do
+      {:ok,
+       url <> if(String.ends_with?(url, "/"), do: "incoming-payments", else: "/incoming-payments")}
+    else
+      {:error, %Error{} = error} -> {:error, error}
+      _other -> invalid_payment(:url, "must be a resource-server base URL without a query")
+    end
+  end
+
+  defp decode_authenticated(data, status, mode \\ :read) do
     with {:ok, payment} <- IncomingPaymentWithMethods.from_map(data),
+         :ok <- validate_creation(payment, mode),
          :ok <- validate_assets(payment) do
       {:ok, payment}
     else
@@ -113,6 +180,21 @@ defmodule OpenPayments.IncomingPayment do
     end
   end
 
+  defp validate_creation(_payment, :read), do: :ok
+
+  defp validate_creation(payment, :create) do
+    cond do
+      String.to_integer(payment.received_amount.value) != 0 ->
+        invalid_payment("received_amount.value", "must be zero for a newly created payment")
+
+      payment.completed ->
+        invalid_payment(:completed, "must be false for a newly created payment")
+
+      true ->
+        :ok
+    end
+  end
+
   defp validate_assets(%IncomingPaymentWithMethods{incoming_amount: nil}), do: :ok
 
   defp validate_assets(%IncomingPaymentWithMethods{
@@ -122,15 +204,13 @@ defmodule OpenPayments.IncomingPayment do
     if incoming.asset_code == received.asset_code and incoming.asset_scale == received.asset_scale,
       do: :ok,
       else:
-        {:error,
-         %Error{
-           kind: :validation,
-           validation_errors: [
-             %{
-               field: :incoming_amount,
-               message: "must use the same asset code and scale as received_amount"
-             }
-           ]
-         }}
+        invalid_payment(
+          :incoming_amount,
+          "must use the same asset code and scale as received_amount"
+        )
   end
+
+  defp invalid_payment(field, message),
+    do:
+      {:error, %Error{kind: :validation, validation_errors: [%{field: field, message: message}]}}
 end
