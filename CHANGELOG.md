@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the strict quote response type with typed debit/receive amounts, schema-specific
+  URI/timestamp rules, JSON codecs and safe inspection/errors.
 - Add signed incoming-payment listing with typed/map pagination, Node-compatible
   query encoding, typed pages and indexed asset consistency errors.
 - Add typed incoming-payment pages with pagination metadata, ordered detailed

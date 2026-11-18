@@ -932,6 +932,55 @@ item fields; methods are excluded. Other amount/time/identity/page-size comparis
 are not inferred. Explicit exports include cursors, metadata and wrapper extensions;
 inspection omits the page payload. Live signed-provider testing remains pending.
 
+## Quote response data
+
+`OpenPayments.Types.Quote` models the strict quote response used by GET and create:
+
+```elixir
+{:ok, quote} = OpenPayments.Types.Quote.from_map(%{
+  "id" => "https://resource.example.com/quotes/quote-1",
+  "walletAddress" => "https://wallet.example.com/alice",
+  "receiver" => "https://receiver.example.com/incoming-payments/payment-1",
+  "debitAmount" => %{"value" => "2500", "assetCode" => "USD", "assetScale" => 2},
+  "receiveAmount" => %{"value" => "2198", "assetCode" => "EUR", "assetScale" => 2},
+  "method" => "ilp",
+  "createdAt" => "2026-11-18T09:20:50Z"
+})
+
+quote.debit_amount
+quote.receive_amount
+```
+
+Required fields are `id`, `walletAddress`, `receiver`, `debitAmount`, `receiveAmount`,
+`method` and `createdAt`. Both amounts become typed `Amount` structs. The response
+requires both amounts, unlike creation-request variants. The current method is
+the string `"ilp"`; no method or amount defaults are supplied.
+
+ID and wallet fields use the schema's absolute-URI data format. Receiver follows
+the HTTP(S) incoming-payment URI pattern, preserving its spelling. These data
+fields do not use discovery/request-target restrictions or resolve payment pointers.
+`createdAt` is an RFC 3339 timestamp. Optional `expiresAt` is a plain string in the
+pinned schema, without a date-time format; it is preserved without timestamp or
+clock validation. Omission becomes nil and is omitted on export; explicit null
+and nonstring expiry values are invalid. This differs from the reviewed Rust
+model's timestamp type for expiry and follows the pinned schema/Node string type.
+
+Additional top-level fields, including `sentAmount`, metadata and JSON aliases,
+are rejected. Permitted nested amount extensions are retained. The bundled
+standalone quote examples include undeclared `sentAmount`, and one also omits
+required `receiveAmount`; tests reject them explicitly. The valid GET/create
+response examples pass unchanged. The SDK does not repair the bundled source or
+silently drop incompatible fields.
+
+Debit and receive assets may differ. No exchange-rate, fee, amount-order,
+positivity or time-consistency rule is inferred. `validate/1` revalidates modified
+structs and both nested amounts; `to_map/1` and JSON encoding export protocol data
+without validating. Inspection shows only ID, method and creation time; explicit
+exports include wallet, receiver, amounts and expiry. Errors retain safe paths
+such as `receive_amount.asset_scale`, without rejected values or unknown names.
+This type makes no requests or payments. Quote creation-request types and signed
+GET/create operations remain under development.
+
 ## Pagination query arguments
 
 `OpenPayments.Types.Pagination` models the optional query arguments shared by
