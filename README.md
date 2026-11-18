@@ -173,8 +173,8 @@ may contain an access token, subject information, both, or neither. Errors use
 
 The caller must honor the server's `wait` interval before calling. The SDK does
 not record receipt times, enforce the delay, sleep or poll. Callers also verify
-callbacks before submitting their references; the callback helper remains under
-development. Use the returned `continued.continue` for a subsequent call, including
+callbacks with `Interaction.verify_hash/2` before submitting their references.
+Use the returned `continued.continue` for a subsequent call, including
 any changed URI or credential. Tokens remain per-call data when sharing a client
 between processes. Redirects and automatic retries are disabled, including after
 transport failures. Live signed-provider compatibility remains a release check.
@@ -203,7 +203,60 @@ retries are disabled, including after ambiguous connection failures.
 The SDK stores no grant state or credentials and leaves the supplied structs
 unchanged. The server checks key binding and determines the cancellation's effect.
 Resource-token revocation uses the token-management API, which remains under
-development. Callback verification and live signed-provider checks also remain pending.
+development. Live signed-provider checks remain pending.
+
+## Verifying an interaction callback hash
+
+`OpenPayments.Interaction.hash/1` calculates a SHA-256 callback hash;
+`verify_hash/2` returns `:ok` on a match or a safe validation error with operation
+`:verify_interaction_hash`. Supply the stored client nonce, stored server nonce
+(the initial response's `interact.finish`), callback reference and exact initial
+grant endpoint. Preserve the URI spelling used for initiation, including its
+path/query. Account for request URL preparation when storing that endpoint.
+
+```elixir
+hash_context = [
+  client_nonce: session.client_nonce,
+  server_nonce: session.server_nonce,
+  interact_ref: callback_params["interact_ref"],
+  grant_endpoint: session.grant_endpoint
+]
+
+with :ok <- OpenPayments.Interaction.verify_hash(callback_params["hash"], hash_context) do
+  OpenPayments.Grant.continue(client, session.continuation, %{
+    "interact_ref" => callback_params["interact_ref"]
+  })
+end
+```
+
+Default `encoding: :base64` produces canonical padded Base64, matching the
+[Open Payments JavaScript example](https://openpayments.dev/identity/hash-verification/)
+and the [reviewed server implementation](https://github.com/interledger/rafiki/blob/main/packages/auth/src/interaction/routes.ts).
+Explicit `encoding: :base64url` produces unpadded base64url, as specified by
+[GNAP RFC 9635 §4.2.3](https://www.rfc-editor.org/rfc/rfc9635.html#section-4.2.3).
+The Open Payments page's prose/example hash and executable JavaScript differ in
+encoding; the helper makes that choice explicit and never falls back to another
+format. Select it from trusted configuration. Only SHA-256 is supported.
+
+The hash base uses the four ASCII values in order with LF separators and no
+trailing newline. Nonces/reference must be nonempty printable ASCII without
+leading/trailing whitespace; internal spaces are retained. Controls and non-ASCII
+values are rejected without conversion. The grant endpoint must be a valid
+absolute HTTP(S) request URL without user-info or fragment; validation preserves
+its hash-input spelling and makes no requests. General JSON codecs retain their
+broader schema string constraints.
+
+Pass the callback hash after your framework URL-decodes it once. Padded Base64
+contains `+`, `/` and `=`; a correctly encoded callback parameter preserves them.
+The helper rejects malformed/noncanonical encodings and compares equal-length
+canonical hashes using [OTP's constant-time comparison](https://www.erlang.org/doc/apps/crypto/crypto.html#hash_equals/2).
+It never guesses encodings or repairs spaces into plus signs.
+
+Applications own session correlation, fresh unpredictable client nonces, callback
+error/result handling, expiry, replay prevention and continuation timing. A hash
+match verifies the supplied context; it does not consume a callback or establish
+resource authorization. The helpers store no session state and never continue a
+grant automatically. Hash mismatch must prevent submission of the reference.
 
 ## Grant client identities
 
@@ -273,8 +326,8 @@ Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding.
 Inspection and validation errors omit nonce values; explicit protocol exports
 include them. Data validation checks nonce strings without assessing randomness.
 The types do not generate nonces, open consent pages, verify callback hashes or
-continue grants. Use `Grant.continue/2,3` for continuation; callback verification
-remains under development.
+continue grants. Use `Interaction.verify_hash/2` for callback-hash verification
+and `Grant.continue/2,3` for continuation.
 
 ## Grant access permissions
 
@@ -488,7 +541,8 @@ server's string and does not open the consent URI or verify the callback hash.
 
 Use `validate/1` after modifying the struct. `to_map/1` and JSON encoding export
 the protocol values; inspection hides redirect, finish and extension data.
-Callback verification remains under development.
+Use `Interaction.verify_hash/2` with the stored request nonce, returned finish
+value, callback reference and original grant endpoint to verify the callback hash.
 
 ## Initial grant responses
 

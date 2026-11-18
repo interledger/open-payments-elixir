@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add pure SHA-256 interaction callback-hash calculation and constant-time verification,
+  explicit Base64/base64url profiles, canonical input validation and safe errors.
 - Add signed grant cancellation using typed continuation credentials, HTTP 204
   acknowledgement, shared no-content response handling and operation-specific errors.
 - Add signed grant continuation with typed credentials, optional JSON/body omission,

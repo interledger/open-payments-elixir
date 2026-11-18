@@ -1,0 +1,96 @@
+{
+  "provenance": {
+    "generator": "Node.js v26.13.0 node:crypto createHash(sha256), ASCII input",
+    "rfc": "https://www.rfc-editor.org/rfc/rfc9635.html#section-4.2.3",
+    "reviewed_implementation": "https://github.com/interledger/rafiki/blob/main/packages/auth/src/interaction/routes.ts",
+    "notes": "First base64url result is the published GNAP vector. Padded base64 matches the Open Payments JavaScript example and reviewed server source. Remaining values and malformed-base variants were computed independently with Node; tests do not require Node."
+  },
+  "vectors": [
+    {
+      "inputs": {
+        "client_nonce": "VJLO6A4CATR0KRO",
+        "server_nonce": "MBDOFXG4Y5CVJCX821LH",
+        "interact_ref": "4IFWWIKYB2PQ6U56NL1",
+        "grant_endpoint": "https://server.example.com/tx"
+      },
+      "hashes": {
+        "base64": "x+gguKWTj8rQf7d7i3w3UhzvuJ5bpOlKyAlVpLxBffY=",
+        "base64url": "x-gguKWTj8rQf7d7i3w3UhzvuJ5bpOlKyAlVpLxBffY"
+      }
+    },
+    {
+      "inputs": {
+        "client_nonce": "client nonce 123",
+        "server_nonce": "server nonce 456",
+        "interact_ref": "opaque reference/value",
+        "grant_endpoint": "https://Auth.Example.COM:8443/tenant/opaque%2fpath?part=a%2Bb&part=2"
+      },
+      "hashes": {
+        "base64": "Zhu66yzaLmhsAgCN6fFKhbBPkY9HjPoGX6+0WbhhetM=",
+        "base64url": "Zhu66yzaLmhsAgCN6fFKhbBPkY9HjPoGX6-0WbhhetM"
+      }
+    },
+    {
+      "inputs": {
+        "client_nonce": "VJLO6A4CATR0KRO",
+        "server_nonce": "MBDOFXG4Y5CVJCX821LH",
+        "interact_ref": "4IFWWIKYB2PQ6U56NL1",
+        "grant_endpoint": "https://server.example.com/tx/"
+      },
+      "hashes": {
+        "base64": "fRiB2386XGibHeyH5oKb5FxpZcsgfSL4obQVzB0aHCo=",
+        "base64url": "fRiB2386XGibHeyH5oKb5FxpZcsgfSL4obQVzB0aHCo"
+      }
+    },
+    {
+      "inputs": {
+        "client_nonce": "VJLO6A4CATR0KRO",
+        "server_nonce": "MBDOFXG4Y5CVJCX821LH",
+        "interact_ref": "4IFWWIKYB2PQ6U56NL1",
+        "grant_endpoint": "https://Server.Example.COM/tx"
+      },
+      "hashes": {
+        "base64": "1hkxh5OdzZVibdF/4Mky0UmaxH06xxI7CHYJzEtDJCg=",
+        "base64url": "1hkxh5OdzZVibdF_4Mky0UmaxH06xxI7CHYJzEtDJCg"
+      }
+    },
+    {
+      "inputs": {
+        "client_nonce": "VJLO6A4CATR0KRO",
+        "server_nonce": "MBDOFXG4Y5CVJCX821LH",
+        "interact_ref": "4IFWWIKYB2PQ6U56NL1",
+        "grant_endpoint": "https://server.example.com:443/tx"
+      },
+      "hashes": {
+        "base64": "96XkZWNnYorjfeG1VWcXf3qQ/cl3ykMIc9xuYczVUyA=",
+        "base64url": "96XkZWNnYorjfeG1VWcXf3qQ_cl3ykMIc9xuYczVUyA"
+      }
+    },
+    {
+      "inputs": {
+        "client_nonce": "VJLO6A4CATR0KRO",
+        "server_nonce": "MBDOFXG4Y5CVJCX821LH",
+        "interact_ref": "4IFWWIKYB2PQ6U56NL1",
+        "grant_endpoint": "http://localhost:3006/tenant"
+      },
+      "hashes": {
+        "base64": "gieaJhuqbWtF3ITxD8ps89CJ6mqX/kkKIWh4uK1ot5o=",
+        "base64url": "gieaJhuqbWtF3ITxD8ps89CJ6mqX_kkKIWh4uK1ot5o"
+      }
+    }
+  ],
+  "incorrect_bases": {
+    "trailing_lf": {
+      "base64": "vq3BFoz/hVW2Tkq64rnC5xhFTiSmbdmpKL4D9mx+r0c=",
+      "base64url": "vq3BFoz_hVW2Tkq64rnC5xhFTiSmbdmpKL4D9mx-r0c"
+    },
+    "crlf": {
+      "base64": "UA01jWf8ZJRg8MSunJC8n4l/FgbPxjIyR0i/u1ryb5c=",
+      "base64url": "UA01jWf8ZJRg8MSunJC8n4l_FgbPxjIyR0i_u1ryb5c"
+    },
+    "swapped_nonces": {
+      "base64": "FYGUK84PiIOLyFotZGqvYZfzB2T3RxYNtUUJmKPn6qQ=",
+      "base64url": "FYGUK84PiIOLyFotZGqvYZfzB2T3RxYNtUUJmKPn6qQ"
+    }
+  }
+}
