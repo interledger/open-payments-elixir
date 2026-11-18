@@ -12,11 +12,14 @@ defmodule OpenPayments.IncomingPayment do
   return detailed data with typed payment methods and consistent amount assets.
   Creation signs a POST to the resource server's incoming-payment collection and
   additionally requires zero received funds and completed false in the response.
+  Completion signs a bodyless POST to the payment's complete endpoint and returns
+  detailed payment data with completed true.
   """
 
   alias OpenPayments.{Client, Error}
   alias OpenPayments.Request.URL
   alias OpenPayments.Response.JSON
+  alias OpenPayments.Types.IncomingPayment, as: IncomingPaymentData
 
   alias OpenPayments.Types.{
     AccessToken,
@@ -28,6 +31,7 @@ defmodule OpenPayments.IncomingPayment do
   @operation :get_public_incoming_payment
   @get_operation :get_incoming_payment
   @create_operation :create_incoming_payment
+  @complete_operation :complete_incoming_payment
 
   @doc """
   Creates an incoming payment using a signed POST and a per-call access token.
@@ -57,7 +61,7 @@ defmodule OpenPayments.IncomingPayment do
          {:ok, _public_key} <- Client.signing_public_jwk(client),
          {:ok, token} <- Client.resource_access_token(opts),
          {:ok, request} <- create_payload(payload),
-         {:ok, url} <- create_url(base_url, Client.allow_http?(client)),
+         {:ok, url} <- append_path(base_url, Client.allow_http?(client), "incoming-payments"),
          {:ok, response} <-
            Client.request_signed(client, :post, url, access_token: token, json: request),
          {:ok, data} <- JSON.decode(response, [201], @create_operation),
@@ -65,6 +69,45 @@ defmodule OpenPayments.IncomingPayment do
       {:ok, payment}
     else
       {:error, error} -> {:error, %{error | operation: @create_operation}}
+    end
+  end
+
+  @doc """
+  Marks an incoming payment complete using a signed POST without a request body.
+
+  Supply the full incoming-payment URL and the required per-call `access_token`
+  option accepted by `get/3`. The SDK appends `/complete`, preserving tenant and
+  opaque path spelling and reusing an existing trailing slash. Queries, including
+  an empty query marker, are rejected. Request URL policies still apply.
+
+  HTTP 200 returns a typed `OpenPayments.Types.IncomingPayment` with completed true
+  and consistent incoming/received asset code and scale, following Node's checks.
+  The completion response excludes payment methods and other unknown top-level
+  fields. The pinned response's additionalProperties restriction is applied to
+  the combined detailed fields, rather than literally closing an allOf reference
+  with no locally declared properties. Metadata and nested amount extensions are
+  still permitted. The standalone detailed codec keeps its extension support.
+
+  Invalid success data returns decoding/invalid_response with status 200. Errors
+  carry `:complete_incoming_payment`. The server checks grant permissions, expiry
+  and completion eligibility; the SDK does not require the full amount to have
+  been received or compare returned identity/timestamps with local state.
+  No automatic retry, redirect, token refresh or readback occurs, including after
+  ambiguous transport failures. The caller decides how to reconcile the outcome.
+  """
+  @spec complete(Client.t(), String.t(), [{:access_token, String.t() | AccessToken.t()}]) ::
+          {:ok, IncomingPaymentData.t()} | {:error, Error.t()}
+  def complete(client, payment_url, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, token} <- Client.resource_access_token(opts),
+         {:ok, url} <- append_path(payment_url, Client.allow_http?(client), "complete"),
+         {:ok, response} <- Client.request_signed(client, :post, url, access_token: token),
+         {:ok, data} <- JSON.decode(response, [200], @complete_operation),
+         {:ok, payment} <- decode_completed(data, response.status) do
+      {:ok, payment}
+    else
+      {:error, error} -> {:error, %{error | operation: @complete_operation}}
     end
   end
 
@@ -151,14 +194,44 @@ defmodule OpenPayments.IncomingPayment do
 
   defp create_payload(payload), do: CreateIncomingPayment.from_map(payload)
 
-  defp create_url(base_url, allow_http) do
+  defp append_path(base_url, allow_http, path) do
     with {:ok, url} <- URL.prepare(base_url, allow_http),
          {:ok, %URI{query: nil}} <- URI.new(base_url) do
-      {:ok,
-       url <> if(String.ends_with?(url, "/"), do: "incoming-payments", else: "/incoming-payments")}
+      {:ok, url <> if(String.ends_with?(url, "/"), do: path, else: "/" <> path)}
     else
       {:error, %Error{} = error} -> {:error, error}
-      _other -> invalid_payment(:url, "must be a resource-server base URL without a query")
+      _other -> invalid_payment(:url, "must not contain a query when appending a resource path")
+    end
+  end
+
+  defp decode_completed(data, status) do
+    with {:ok, payment} <- IncomingPaymentData.from_map(data),
+         :ok <- validate_completion(payment),
+         :ok <- validate_assets(payment) do
+      {:ok, payment}
+    else
+      {:error, error} ->
+        {:error,
+         %{
+           error
+           | kind: :decoding,
+             status: status,
+             code: "invalid_response",
+             description: "Invalid Open Payments incoming-payment completion response"
+         }}
+    end
+  end
+
+  defp validate_completion(payment) do
+    cond do
+      map_size(payment.extensions) != 0 ->
+        invalid_payment(:incoming_payment, "must contain only detailed incoming-payment fields")
+
+      not payment.completed ->
+        invalid_payment(:completed, "must be true for a completed payment")
+
+      true ->
+        :ok
     end
   end
 
@@ -195,9 +268,9 @@ defmodule OpenPayments.IncomingPayment do
     end
   end
 
-  defp validate_assets(%IncomingPaymentWithMethods{incoming_amount: nil}), do: :ok
+  defp validate_assets(%{incoming_amount: nil}), do: :ok
 
-  defp validate_assets(%IncomingPaymentWithMethods{
+  defp validate_assets(%{
          incoming_amount: incoming,
          received_amount: received
        }) do

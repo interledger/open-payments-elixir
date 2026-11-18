@@ -97,9 +97,9 @@ Construction makes no HTTP requests and does not check wallet/key registration.
 Client inspection omits the identity, key and custom headers. Access tokens remain
 per-call data rather than client state. Public reads stay unsigned, following
 Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
-`OpenPayments.Token.revoke/2` use signed dispatch, as does
-`OpenPayments.IncomingPayment.get/3` and `OpenPayments.IncomingPayment.create/4`.
-Other authenticated resource operations
+`OpenPayments.Token.revoke/2` use signed dispatch, as do
+`OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4` and
+`OpenPayments.IncomingPayment.complete/3`. Other authenticated resource operations
 remain under development.
 
 ## Requesting a grant
@@ -767,7 +767,7 @@ signing, HTTP or transport kinds. Amount values, timestamps, the requested URL a
 token metadata are not compared for equality with the returned resource.
 
 Inspection hides shared secrets, metadata and extensions; explicit map/JSON
-exports include them. Completion and listing remain under development.
+exports include them. Listing remains under development.
 Live signed-provider testing remains pending.
 
 ## Creating incoming payments
@@ -824,6 +824,56 @@ the caller decides how to reconcile that outcome. Inspection hides returned ILP
 shared secrets; explicit map/JSON exports include them. Live signed-provider
 testing remains pending.
 
+## Completing incoming payments
+
+Mark an incoming payment complete with an authenticated client and a token
+authorized to complete it:
+
+```elixir
+{:ok, completed_payment} =
+  OpenPayments.IncomingPayment.complete(client, payment.id,
+    access_token: issued_token
+  )
+
+completed_payment.completed # true
+```
+
+Supply the full payment URL. The SDK appends `/complete`, preserving its path and
+reusing a trailing slash. As with collection creation, queries (including an empty
+`?`), user-info and fragments are rejected before HTTP. HTTPS ports are supported;
+HTTP requires explicit development opt-in. The operation sends a signed POST with
+GNAP authorization and no body or content headers, matching Node. The required
+`access_token` option accepts the same raw string or typed `AccessToken` as reads
+and creation; other or duplicate options are invalid.
+
+HTTP 200 returns `{:ok, %OpenPayments.Types.IncomingPayment{}}`. Following Node's
+completion checks, `completed` must be true and a present incoming amount must
+share the received amount's asset code and scale. Partial and zero receipts are
+accepted: completion does not require the full incoming amount to have arrived.
+The server checks permissions, expiry and completion eligibility. The SDK does
+not compare returned identity or timestamps with local state.
+
+The response uses detailed payment fields without payment methods. Unknown
+top-level fields, including `methods` and `authServer`, are rejected; arbitrary
+metadata and permitted nested amount extensions remain allowed. This interprets
+the pinned endpoint's `additionalProperties: false` over the combined detailed
+fields. Its literal placement beside a reference to an `allOf` schema would
+reject even the bundled example, because `additionalProperties` only recognizes
+properties declared in the same schema. See the
+[JSON Schema explanation](https://json-schema.org/understanding-json-schema/reference/object#extending-closed-schemas).
+The SDK applies the combined-field restriction explicitly; the standalone detailed
+codec continues preserving extensions. Node's completion postconditions are
+matched, while its dereferencing/validator behavior for this schema edge has not
+been executed here. PHP and Go expose a with-methods result for completion; this
+SDK follows the pinned response shape and Node's detailed return type.
+
+Invalid success data returns `kind: :decoding`, `code: "invalid_response"`, status
+200 and safe field paths; errors carry `operation: :complete_incoming_payment`.
+Failures do not trigger automatic retries, redirects, token refresh or readback.
+A timeout can follow server-side completion; the caller decides how to reconcile
+the result. Local tests cover create → complete → read with fresh state. Live
+signed-provider testing remains pending.
+
 ## Detailed incoming-payment data
 
 `OpenPayments.Types.IncomingPayment.from_map/1` decodes the detailed
@@ -865,7 +915,8 @@ Payment methods are not declared by this detailed schema, so any `methods` field
 is retained as an uninterpreted extension. Use `Types.IncomingPaymentWithMethods`
 for the authenticated read/create schema, which additionally requires typed
 payment methods. `IncomingPayment.get/3` and `IncomingPayment.create/4` use that
-variant; completion and listing remain under development.
+variant; `IncomingPayment.complete/3` returns the detailed type above, and listing
+remains under development.
 
 ## Incoming-payment data with payment methods
 
@@ -888,8 +939,8 @@ extensions; inspection omits those values. URI/timestamp spelling and optional
 field rules follow the detailed type. The codec makes no requests, connects to
 no payment method and performs no asset/amount/time consistency checks.
 `Types.CreateIncomingPayment` models the create payload. `IncomingPayment.get/3`
-and `IncomingPayment.create/4` return this response type; completion and listing
-remain under development.
+and `IncomingPayment.create/4` return this response type. Completion returns the
+detailed type without methods; listing remains under development.
 
 ## Incoming-payment create request data
 
@@ -937,8 +988,8 @@ secret length or establish a STREAM connection.
 Inspection omits the shared secret; `to_map/1` and JSON encoding explicitly include
 it for protocol use. Treat exported maps and JSON as sensitive. Use `validate/1`
 after manually constructing or modifying a struct. `IncomingPayment.get/3` and
-`IncomingPayment.create/4` return typed methods; completion and listing remain
-under development.
+`IncomingPayment.create/4` return typed methods; completion returns detailed data
+without methods, and listing remains under development.
 
 ## Amounts
 
@@ -1191,7 +1242,7 @@ Custom headers are checked for case-insensitive duplicates and invalid ASCII or
 control characters. Authorization, content/signature headers and transport framing
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
-public client and wallet discovery, plus incoming-payment reads and creation;
+public client and wallet discovery, plus incoming-payment reads, creation and completion;
 other authenticated resource operations remain to be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.

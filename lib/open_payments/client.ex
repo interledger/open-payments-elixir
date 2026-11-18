@@ -14,6 +14,7 @@ defmodule OpenPayments.Client do
   access tokens.
   `OpenPayments.IncomingPayment.get/3` reads authenticated incoming-payment data.
   `OpenPayments.IncomingPayment.create/4` creates incoming payments.
+  `OpenPayments.IncomingPayment.complete/3` marks them complete.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -82,8 +83,8 @@ defmodule OpenPayments.Client do
   are not stored on the client. Grants use `OpenPayments.Grant.request/3` and
   `OpenPayments.Grant.continue/2`, with `OpenPayments.Grant.cancel/2` for cancellation;
   Token management uses `OpenPayments.Token.rotate/2` and `OpenPayments.Token.revoke/2`.
-  Authenticated incoming-payment reads and creation use
-  `OpenPayments.IncomingPayment.get/3` and `OpenPayments.IncomingPayment.create/4`;
+  Authenticated incoming-payment operations use `OpenPayments.IncomingPayment.get/3`,
+  `OpenPayments.IncomingPayment.create/4` and `OpenPayments.IncomingPayment.complete/3`;
   other authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed incoming-payment completion with per-call tokens, bodyless POSTs,
+  detailed response fields and Node-style completed/asset consistency checks.
 - Add signed incoming-payment creation with typed/map payloads, per-call tokens,
   tenant-aware collection URLs and Node-style creation response checks.
 - Add signed authenticated incoming-payment reads with per-call string/typed tokens,
