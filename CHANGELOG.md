@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add pagination query arguments with bounded integer counts, mutually exclusive
+  directions, opaque cursors, strict input fields and JSON codecs.
 - Add shared pagination metadata with required page flags, optional opaque cursors,
   strict fields, JSON codecs and safe inspection/errors.
 - Add signed incoming-payment completion with per-call tokens, bodyless POSTs,

@@ -874,6 +874,39 @@ A timeout can follow server-side completion; the caller decides how to reconcile
 the result. Local tests cover create → complete → read with fresh state. Live
 signed-provider testing remains pending.
 
+## Pagination query arguments
+
+`OpenPayments.Types.Pagination` models the optional query arguments shared by
+payment-list operations:
+
+```elixir
+pagination = %OpenPayments.Types.Pagination{first: 25, cursor: "opaque-cursor"}
+:ok = OpenPayments.Types.Pagination.validate(pagination)
+
+OpenPayments.Types.Pagination.to_map(pagination)
+# => %{"first" => 25, "cursor" => "opaque-cursor"}
+```
+
+`from_map/1` accepts only the string keys `first`, `last` and `cursor`. Counts must
+be integers from 1 through 100; numeric strings, floats and out-of-range values
+are invalid. At most one of `first` and `last` may be supplied, matching Node's
+forward/backward pagination union. This exclusivity is an SDK rule beyond the
+shared specification's separate parameter constraints.
+
+All fields are optional. `%Pagination{}` or an empty map selects no local page
+size or direction default; the server decides its defaults. A cursor may be used
+alone. Omitted map fields and typed nil values mean omission; explicit null in a
+map is invalid. A present cursor must be a nonempty UTF-8 string, with its spelling
+preserved without trimming, decoding or UUID/URL/encoding checks. The wallet filter,
+resource-server URL and credentials are separate list-operation inputs.
+
+Call `validate/1` after constructing or modifying a struct. `to_map/1` and JSON
+encoding export integer counts and raw cursors without validating or percent
+encoding. Inspection shows only counts; explicit exports include cursors, and
+errors retain safe field paths without rejected values. This type makes no
+requests or automatic page traversal. Typed list results and signed list
+operations remain under development.
+
 ## Pagination metadata
 
 `OpenPayments.Types.PageInfo` models the shared `page-info` schema used by
@@ -901,8 +934,9 @@ must exist. This type does not compare cursors with result items or infer orderi
 Use `validate/1` after modifying a struct. `to_map/1` and JSON encoding export the
 protocol fields without validating. Inspection exposes only the flags; explicit
 exports include cursors. Errors retain safe field paths without rejected values.
-This type makes no requests or automatic page traversal. Pagination query types,
-typed list results and signed list operations remain under development.
+This type makes no requests or automatic page traversal. Query arguments use
+`Types.Pagination` above; typed list results and signed list operations remain
+under development.
 
 ## Detailed incoming-payment data
 
