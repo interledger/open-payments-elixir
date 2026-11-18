@@ -1923,8 +1923,8 @@ without retaining rejected values.
 
 `public_jwk/1` and `public_jwks/1` return the typed public models described above,
 without private material. Key structs hide key material during inspection and have
-no JSON encoder; the seed remains in process memory. The Open Payments
-request-signing pipeline is still being implemented.
+no JSON encoder; the seed remains in process memory. Authenticated operations
+use these keys with the request-signing pipeline described below.
 
 `OpenPayments.Key.key_id/1` reads the configured identifier. `Key.sign/2` signs
 exact binary data and returns raw Ed25519 signature bytes; it does not construct
@@ -1938,9 +1938,43 @@ mix check
 mix dialyzer
 ```
 
-After dependencies are installed, `mix test` runs without network access,
+After dependencies are installed, `mix test` runs without internet access,
 credentials, a database, or an external payment server. External integration tests
 are excluded by default.
+
+## Complete simulated payment flows
+
+Run the acceptance scenarios independently or as part of the default test suite:
+
+```sh
+mix test test/open_payments/payment_flow_test.exs
+```
+
+The two normal scenarios use quote-based and direct incoming-payment creation.
+Each composes the public APIs through wallet/JWKS discovery, immediate and
+interactive grants, independent callback-hash verification, incoming-payment
+creation/read/public read, quote creation/read, token rotation, outgoing-payment
+creation/read/list, grant spending, incoming completion/list, revocation and grant
+cancellation. Each checks an exact 24-request trace covering all 17 pinned HTTP
+operations and the separate unsigned incoming-payment read variant. Stale and
+revoked tokens are rejected by the simulator. Tests run concurrently with isolated
+server state.
+
+The local server independently verifies signed requests against a fixed RFC 8032
+public key using received method, target, authorization and exact body bytes. It
+checks that public reads remain unsigned. Callback hashes are constructed without
+the SDK hash helper; application orchestration only continues after verification.
+A separate scenario rejects a mismatched callback before any continuation.
+
+Two failure scenarios record a payment server-side, then drop the connection or
+return an invalid creation response. They verify that the SDK does not issue a
+second POST; the test application explicitly lists payments and reads grant
+spending to reconcile the result.
+
+These are offline protocol-composition tests using loopback HTTP and simulated
+state. They perform no real settlement, browser consent or external provider
+interoperability check. The server uses the documented Node signing profile;
+passing these tests does not establish final-GNAP-profile or live ASE compatibility.
 
 ## Protocol baseline
 
