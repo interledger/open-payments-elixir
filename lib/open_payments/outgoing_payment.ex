@@ -6,14 +6,66 @@ defmodule OpenPayments.OutgoingPayment do
   per-call access token. Paths and queries are opaque; no provider layout or
   wallet/receiver lookup is inferred. HTTPS is required unless HTTP was explicitly
   enabled on the client. Redirects and automatic retries are disabled.
+  Creation signs a POST to the outgoing-payments collection using either supported
+  request form and returns typed payment data with optional grant spent amounts.
   """
 
   alias OpenPayments.{Client, Error}
+  alias OpenPayments.Request.URL
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.AccessToken
+  alias OpenPayments.Types.{AccessToken, CreateOutgoingPayment, OutgoingPaymentWithSpentAmounts}
   alias OpenPayments.Types.OutgoingPayment, as: PaymentData
 
   @get_operation :get_outgoing_payment
+  @create_operation :create_outgoing_payment
+
+  @doc """
+  Creates an outgoing payment using one signed POST and a validated request form.
+
+  Supply the resource-server base, a `CreateOutgoingPayment` struct or protocol
+  map, and the required per-call access_token option accepted by `get/3`. Appends
+  `/outgoing-payments`, preserving tenant paths and reusing a trailing slash.
+  Base queries, including an empty marker, are rejected. URL/token policies apply.
+
+  Both typed/map inputs are validated before HTTP. Supply quote_id, or both
+  incoming_payment and debit_amount; metadata is optional. No quote/wallet/receiver
+  is fetched and no amount is inferred. The server checks quote validity, wallet
+  asset compatibility, grant permissions and key binding.
+
+  HTTP 201 returns `OutgoingPaymentWithSpentAmounts`. Either, both or neither
+  grant spent amount may appear; permitted JSON extensions are retained. Shared
+  debit/sent consistency checks match `get/3`, including original-string equality
+  for the failed rule. No zero-sent, failed-false, request/response identity or
+  amount equality, grant-budget or grant-asset rule is added. Creation responses
+  may already reflect payment progress. Invalid success schemas or consistency
+  return decoding/invalid_response/status201; all errors carry
+  `:create_outgoing_payment`.
+
+  Creating an outgoing payment authorizes processing by the server. This call
+  does not make a second send request, retry, follow redirects, refresh a token,
+  poll or read back the resource. A timeout, lost response or invalid response
+  may occur after the server has created/started the payment. The caller decides
+  how to reconcile that outcome; automatic replay could duplicate the payment.
+  """
+  @spec create(Client.t(), String.t(), CreateOutgoingPayment.t() | map(), [
+          {:access_token, String.t() | AccessToken.t()}
+        ]) :: {:ok, OutgoingPaymentWithSpentAmounts.t()} | {:error, Error.t()}
+  def create(client, base_url, payload, opts) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         {:ok, token} <- Client.resource_access_token(opts),
+         {:ok, request} <- prepare_payload(payload),
+         {:ok, url} <- URL.append_path(base_url, Client.allow_http?(client), "outgoing-payments"),
+         {:ok, response} <-
+           Client.request_signed(client, :post, url, access_token: token, json: request),
+         {:ok, data} <- JSON.decode(response, [201], @create_operation),
+         {:ok, payment} <-
+           decode(data, response.status, &OutgoingPaymentWithSpentAmounts.from_map/1) do
+      {:ok, payment}
+    else
+      {:error, error} -> {:error, %{error | operation: @create_operation}}
+    end
+  end
 
   @doc """
   Fetches an outgoing payment using a signed GET and a per-call access token.
@@ -47,15 +99,21 @@ defmodule OpenPayments.OutgoingPayment do
          {:ok, token} <- Client.resource_access_token(opts),
          {:ok, response} <- Client.request_signed(client, :get, url, access_token: token),
          {:ok, data} <- JSON.decode(response, [200], @get_operation),
-         {:ok, payment} <- decode(data, response.status) do
+         {:ok, payment} <- decode(data, response.status, &PaymentData.from_map/1) do
       {:ok, payment}
     else
       {:error, error} -> {:error, %{error | operation: @get_operation}}
     end
   end
 
-  defp decode(data, status) do
-    with {:ok, payment} <- PaymentData.from_map(data),
+  defp prepare_payload(%CreateOutgoingPayment{} = request) do
+    with :ok <- CreateOutgoingPayment.validate(request), do: {:ok, request}
+  end
+
+  defp prepare_payload(payload), do: CreateOutgoingPayment.from_map(payload)
+
+  defp decode(data, status, decoder) do
+    with {:ok, payment} <- decoder.(data),
          :ok <- consistent(payment) do
       {:ok, payment}
     else
@@ -71,7 +129,7 @@ defmodule OpenPayments.OutgoingPayment do
     end
   end
 
-  defp consistent(%PaymentData{debit_amount: debit, sent_amount: sent, failed: failed}) do
+  defp consistent(%{debit_amount: debit, sent_amount: sent, failed: failed}) do
     debit_asset = {debit.asset_code, debit.asset_scale}
     sent_asset = {sent.asset_code, sent.asset_scale}
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed outgoing-payment creation for quote/direct request forms with
+  typed spent-amount responses, Node consistency checks and no automatic replay.
 - Add signed outgoing-payment reads with per-call raw/typed tokens, typed
   responses, Node payment consistency checks and operation-specific safe errors.
 - Add strict outgoing-payment creation payloads for quote and incoming-payment

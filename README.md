@@ -42,8 +42,8 @@ may include a local port when enabled. This request-side policy is stricter than
 Node's generic URL handling; the response model continues to follow its URI schema.
 Automatic payment-pointer resolution is an Elixir convenience. Redirects are not
 followed. Grant/token management, incoming-payment operations, quote operations
-and outgoing-payment reads are available; other resource operations remain under
-development.
+and outgoing-payment create/read operations are available; other resource
+operations remain under development.
 
 Errors identify `operation: :get_wallet_address`. HTTP failures retain the status
 and recognized server error fields; invalid success JSON or wallet data returns a
@@ -101,8 +101,8 @@ Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.Token.revoke/2` use signed dispatch, as do
 `OpenPayments.IncomingPayment.get/3`, `OpenPayments.IncomingPayment.create/4`,
 `OpenPayments.IncomingPayment.complete/3`, `OpenPayments.IncomingPayment.list/4`,
-`OpenPayments.Quote.get/3`, `OpenPayments.Quote.create/4` and
-`OpenPayments.OutgoingPayment.get/3`.
+`OpenPayments.Quote.get/3`, `OpenPayments.Quote.create/4`,
+`OpenPayments.OutgoingPayment.get/3` and `OpenPayments.OutgoingPayment.create/4`.
 Other authenticated resource operations remain under development.
 
 ## Requesting a grant
@@ -1070,8 +1070,64 @@ status 200 and safe paths such as `sent_amount` or `sent_amount.value`. Inspecti
 hides amounts, metadata and related references; explicit exports include them.
 The call makes no payment and does not cache, poll, refresh tokens, follow
 redirects or retry after HTTP/transport failures. Live signed-provider testing
-remains pending. Outgoing creation, listing and grant-spent HTTP operations remain
+remains pending. Outgoing listing and grant-spent HTTP operations remain
 under development.
+
+## Creating an outgoing payment
+
+Use either a quote-based or direct incoming-payment request with an authenticated
+client and a per-call token:
+
+```elixir
+request = %OpenPayments.Types.CreateOutgoingPayment{
+  wallet_address: wallet.id,
+  quote_id: quote.id,
+  metadata: %{"externalRef" => "INV-12876"}
+}
+
+{:ok, payment} =
+  OpenPayments.OutgoingPayment.create(client, wallet.resource_server, request,
+    access_token: "issued-access-token"
+  )
+
+payment.sent_amount
+payment.grant_spent_debit_amount
+payment.grant_spent_receive_amount
+```
+
+A direct request instead supplies `incoming_payment` and a typed `debit_amount`.
+String-keyed protocol maps are also accepted. Both forms are validated before
+HTTP; mixed/incomplete forms, explicit nulls and undeclared request fields are
+rejected. See `Types.CreateOutgoingPayment` below for both payload examples. The
+server checks quote validity, wallet asset compatibility, permissions and key
+binding. No related resource is fetched and no amount is inferred.
+
+The SDK appends `/outgoing-payments` to the resource-server base, preserving tenant
+paths and reusing a trailing slash. Base queries, including an empty query marker,
+are rejected. The same raw/typed token, strict per-call option and URL policies
+as `OutgoingPayment.get/3` apply. One GNAP POST signs the exact encoded JSON bytes,
+target and authorization.
+
+HTTP 201 returns `Types.OutgoingPaymentWithSpentAmounts`, with optional typed
+grant spent amounts and permitted JSON extensions. The same debit/sent asset,
+numeric cap and original-string failure checks used by reads apply here. A
+creation response can already reflect sent funds or a failure; no zero-sent,
+failed-false, request/response identity or amount equality rule is added. Grant
+spent amounts are preserved without comparing them to this payment or a local
+budget. HTTP 200 and other unexpected success statuses are rejected.
+
+All errors carry `operation: :create_outgoing_payment`; invalid success data
+returns `kind: :decoding`, `code: "invalid_response"`, status 201 and safe field
+paths. Inspection hides amounts, related references, metadata and extensions;
+explicit exports include them.
+
+Creating the resource authorizes payment processing by the server. The SDK makes
+no second send request and does not retry, follow redirects, refresh a token,
+poll or read back automatically. A timeout, dropped connection or invalid response
+may occur after the server has created or started the payment. The caller must
+decide how to reconcile that outcome before another creation attempt. Use
+`OutgoingPayment.get/3` explicitly to read a returned resource ID; reads return
+the separate detailed type. Live signed-provider testing remains pending.
 
 ## Outgoing-payment response data
 
@@ -1175,8 +1231,8 @@ export without validation, defaults or lookups.
 Inspection hides all payload fields. Explicit exports include wallet, quote or
 incoming-payment references, amount and metadata; errors contain safe paths such
 as `debit_amount.value`, without rejected values or unknown names. This type makes
-no requests or payments. `OutgoingPayment.get/3` reads existing payments; creation
-and other outgoing-payment HTTP operations remain under development.
+no requests or payments. Use `OutgoingPayment.create/4` to create a payment and
+`OutgoingPayment.get/3` to read an existing one.
 
 ## Outgoing-payment creation response data
 
@@ -1220,9 +1276,9 @@ shows only ID, failure status and creation time; explicit exports include all
 amounts, wallet, receiver, quote, metadata and extensions. Errors retain safe
 paths such as `grant_spent_debit_amount.value`, without rejected data or unknown
 names. The codec does not compare grant limits, assets, values or failure status,
-track grant spending, or make requests/payments. `OutgoingPayment.get/3` reads
-existing payments; creation and other outgoing-payment HTTP operations remain
-under development.
+track grant spending, or make requests/payments. `OutgoingPayment.create/4` returns
+this type; `OutgoingPayment.get/3` reads existing payments into the separate
+detailed type.
 
 ## Quote response data
 
@@ -1794,7 +1850,8 @@ control characters. Authorization, content/signature headers and transport frami
 are SDK-owned and cannot be overridden through custom headers. Request inspection
 omits URLs, headers and bodies. These are internal building blocks used by the
 public client and wallet discovery, incoming-payment operations, quote operations
-and outgoing-payment reads; other resource operations remain to be implemented.
+and outgoing-payment create/read operations; other resource operations remain to
+be implemented.
 
 The internal transport sends prepared requests through Req's low-level API.
 It has no automatic retries, redirects, request re-encoding, response decoding,
