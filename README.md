@@ -723,6 +723,48 @@ extensions. Validation errors use paths such as `received_amount.value` and
 this current schema; authenticated incoming-payment operations are still being
 implemented.
 
+## Detailed incoming-payment data
+
+`OpenPayments.Types.IncomingPayment.from_map/1` decodes the detailed
+`incoming-payment` schema used by listing and completion:
+
+```elixir
+{:ok, payment} = OpenPayments.Types.IncomingPayment.from_map(%{
+  "id" => "https://wallet.example.com/incoming-payments/payment-1",
+  "walletAddress" => "https://wallet.example.com/alice",
+  "completed" => false,
+  "receivedAmount" => %{"value" => "0", "assetCode" => "USD", "assetScale" => 2},
+  "createdAt" => "2026-11-18T09:20:50Z",
+  "metadata" => %{"externalRef" => "invoice-1"}
+})
+
+payment.wallet_address
+payment.received_amount.value
+```
+
+Required fields are `id`, `walletAddress`, `completed`, `receivedAmount` and
+`createdAt`. The model does not fill the schema's `completed` default: one bundled
+standalone example omits that required field and is explicitly tested as invalid.
+All valid list/completion examples round trip unchanged.
+
+Amounts become typed `Amount` structs. Optional `incomingAmount`, `expiresAt` and
+JSON-object `metadata` become nil when omitted; explicit null is invalid. Empty
+metadata is retained as `{}`. URI and RFC 3339 timestamp spelling, offsets and
+fractional precision are preserved. JSON metadata and permitted standalone-schema
+extensions round trip without interpreting their application data.
+
+`validate/1` revalidates manually modified structs and nested amounts. `to_map/1`
+and JSON encoding retain protocol field names. Inspection omits amounts, metadata
+and extension values; explicit exports include them. Errors expose safe field
+paths such as `incoming_amount.value`. This codec does not compare asset identities,
+amount values or timestamps; Node-style payment consistency checks belong to the
+forthcoming operations.
+
+Payment methods are not declared by this detailed schema, so any `methods` field
+is retained as an uninterpreted extension. The authenticated read/create schema
+additionally requires typed payment methods; that variant and authenticated
+incoming-payment HTTP operations remain under development.
+
 ## ILP payment methods
 
 `OpenPayments.Types.ILPPaymentMethod.from_map/1` decodes an incoming payment's

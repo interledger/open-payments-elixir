@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the detailed incoming-payment response type with typed amounts, wallet and
+  metadata validation, preserved JSON fields and safe inspection/errors.
 - Add signed access-token revocation using typed management credentials, HTTP 204
   acknowledgement and operation-specific errors without automatic replay.
 - Add signed access-token rotation and a typed response wrapper with metadata
