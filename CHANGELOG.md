@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Document supported runtimes, specification coverage and Node compatibility in the README.
 - Add signed outgoing-grant spent-amount reads with per-call tokens, required
   nullable typed responses, operation-specific errors and no automatic replay.
 - Add the standalone outgoing-grant spent-amount response with required nullable

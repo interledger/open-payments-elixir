@@ -2059,6 +2059,23 @@ state. They perform no real settlement, browser consent or external provider
 interoperability check. The server uses the documented Node signing profile;
 passing these tests does not establish final-GNAP-profile or live ASE compatibility.
 
+## Compatibility
+
+The SDK supports Elixir 1.17 and later on compatible OTP versions. CI checks
+Elixir 1.17 / OTP 26, Elixir 1.19 / OTP 28 and Elixir 1.20 / OTP 29. It implements
+all 17 HTTP operations in the bundled Open Payments 1.5.0 specification.
+
+The primary behavioral reference is
+[Node SDK 7.4.0](https://github.com/interledger/open-payments-node/tree/8391a1c9e33ee157d918f753f7c06d7ce3e2fd80/packages/open-payments).
+Elixir APIs return typed snake_case structs and result tuples. Protocol JSON names
+and schema-specific omission/null rules are preserved; operation sections above
+document validation and URL-handling differences.
+
+Requests require HTTPS by default and have no automatic retries or redirects.
+The [signing profile](#signing-dependency) follows the reviewed Node implementation
+and differs from the final GNAP profile. Public testnet discovery has been verified;
+live signed requests, consent and funded payments remain unverified here.
+
 ## Protocol baseline
 
 The SDK targets Open Payments specification 1.5.0. Its specification artifacts are
@@ -2097,7 +2114,7 @@ belong before this byte-level preparation.
 One deliberate difference from the Node SDK's content-header helper: the Elixir
 helper hashes the supplied bytes directly, preserving whitespace, property order,
 and Unicode spelling. Node's helper parses and re-serializes JSON before hashing.
-The future transport must send the same bytes used for the digest and signature.
+The transport sends the same bytes used for the digest and signature.
 
 Internal header generation now uses the reviewed Node Open Payments profile:
 `sig1` covers `@method`, `@target-uri`, authorization when present, and all three
