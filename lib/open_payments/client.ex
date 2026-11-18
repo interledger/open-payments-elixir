@@ -8,7 +8,8 @@ defmodule OpenPayments.Client do
   `OpenPayments.IncomingPayment.get_public/2` for public reads.
 
   `new_authenticated/1` adds a wallet identity and an Ed25519 signing key.
-  Use it with `OpenPayments.Grant.request/3` for signed grant initiation.
+  Use it with `OpenPayments.Grant.request/3` and `OpenPayments.Grant.continue/2`
+  for signed grant initiation and continuation.
   Existing public operations remain unsigned with either client type.
   """
 
@@ -73,7 +74,8 @@ defmodule OpenPayments.Client do
   Wallet identity follows discovery's URL/payment-pointer rules. Construction
   makes no network requests and does not verify registration of the public key.
   Public operations remain unsigned. Tokens belong to individual operations and
-  are not stored on the client. Grant initiation uses `OpenPayments.Grant.request/3`;
+  are not stored on the client. Grants use `OpenPayments.Grant.request/3` and
+  `OpenPayments.Grant.continue/2`;
   token and authenticated resource operations remain under development.
   """
   @spec new_authenticated(keyword()) :: {:ok, t()} | {:error, Error.t()}

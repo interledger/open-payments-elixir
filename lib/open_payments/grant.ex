@@ -7,13 +7,25 @@ defmodule OpenPayments.Grant do
   authorization-server URL; no path is appended or inferred. HTTPS is required
   unless HTTP was explicitly enabled on the client. Redirects and automatic
   retries are disabled, including after ambiguous transport failures.
+  Continuation signs a POST with its per-call GNAP continuation credential and
+  optional JSON body. Applications own callback verification and wait scheduling.
   """
 
   alias OpenPayments.{Client, Error}
   alias OpenPayments.Response.JSON
-  alias OpenPayments.Types.{GrantClient, GrantRequest, GrantResponse, JWK}
+
+  alias OpenPayments.Types.{
+    Continuation,
+    GrantClient,
+    GrantContinuationRequest,
+    GrantContinuationResponse,
+    GrantRequest,
+    GrantResponse,
+    JWK
+  }
 
   @operation :request_grant
+  @continue_operation :continue_grant
   @key_fields ~w(kid alg kty crv x)
 
   @doc """
@@ -46,6 +58,68 @@ defmodule OpenPayments.Grant do
     else
       {:error, error} -> {:error, %{error | operation: @operation}}
     end
+  end
+
+  @doc """
+  Continues a grant once using a typed continuation URI and credential.
+
+  Pass the `continue` object from the latest response and the authenticated client
+  holding the same signing key used for initiation. No path is appended. The
+  continuation credential is sent in `Authorization: GNAP ...` and covered by the
+  signature; issued resource access-token structs cannot replace it.
+
+  Omitted or nil payload sends no body. A typed `GrantContinuationRequest` or
+  string-keyed JSON map sends a JSON body, including `{}` for an empty payload.
+  The result is a `GrantContinuationResponse`; errors carry `:continue_grant`.
+
+  The caller must honor the server's `wait` interval before calling and verify
+  interaction callbacks before supplying their reference. This operation does
+  not track receipt times, enforce waiting, verify callbacks, poll, retry or
+  persist credentials. Use the returned continuation data for the next call,
+  including any changed URI or credential. Tokens remain per-call data.
+  """
+  @spec continue(Client.t(), Continuation.t(), GrantContinuationRequest.t() | map() | nil) ::
+          {:ok, GrantContinuationResponse.t()} | {:error, Error.t()}
+  def continue(client, continuation, payload \\ nil) do
+    with {:ok, client} <- Client.validate(client),
+         {:ok, _public_key} <- Client.signing_public_jwk(client),
+         :ok <- validate_continuation(continuation),
+         {:ok, body_options} <- continuation_body(payload),
+         {:ok, response} <-
+           Client.request_signed(
+             client,
+             :post,
+             continuation.uri,
+             Keyword.put(body_options, :access_token, continuation.access_token.value)
+           ),
+         {:ok, data} <- JSON.decode(response, [200], @continue_operation),
+         {:ok, grant} <- decode_continuation(data, response.status) do
+      {:ok, grant}
+    else
+      {:error, error} -> {:error, %{error | operation: @continue_operation}}
+    end
+  end
+
+  defp validate_continuation(%Continuation{} = continuation),
+    do: Continuation.validate(continuation)
+
+  defp validate_continuation(_continuation),
+    do:
+      {:error,
+       %Error{
+         kind: :validation,
+         description: "Invalid Open Payments continuation data",
+         validation_errors: [%{field: :continuation, message: "must be a Continuation struct"}]
+       }}
+
+  defp continuation_body(nil), do: {:ok, []}
+
+  defp continuation_body(%GrantContinuationRequest{} = payload) do
+    with :ok <- GrantContinuationRequest.validate(payload), do: {:ok, [json: payload]}
+  end
+
+  defp continuation_body(payload) do
+    with {:ok, request} <- GrantContinuationRequest.from_map(payload), do: {:ok, [json: request]}
   end
 
   defp prepare_payload(%GrantRequest{} = grant, _client) do
@@ -96,6 +170,23 @@ defmodule OpenPayments.Grant do
              status: status,
              code: "invalid_response",
              description: "Invalid Open Payments initial grant response"
+         }}
+    end
+  end
+
+  defp decode_continuation(data, status) do
+    case GrantContinuationResponse.from_map(data) do
+      {:ok, grant} ->
+        {:ok, grant}
+
+      {:error, error} ->
+        {:error,
+         %{
+           error
+           | kind: :decoding,
+             status: status,
+             code: "invalid_response",
+             description: "Invalid Open Payments grant continuation response"
          }}
     end
   end

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add signed grant continuation with typed credentials, optional JSON/body omission,
+  typed result variants, per-call token handling and operation-specific errors.
 - Add signed grant initiation with default wallet identification, explicit typed/JSON
   payloads, directed-key matching, typed initial responses and operation-specific errors.
 - Add the grant continuation request payload with an optional interaction reference,

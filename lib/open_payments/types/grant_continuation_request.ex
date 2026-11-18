@@ -9,8 +9,8 @@ defmodule OpenPayments.Types.GrantContinuationRequest do
 
   Unlike the Node SDK's TypeScript `Required` body type, this codec permits an
   empty object as declared by the shared schema. It models a JSON object only:
-  `from_map(nil)` is invalid, while a future continuation operation may omit the
-  HTTP body separately. An empty struct exports as an empty JSON object.
+  `from_map(nil)` is invalid, while `OpenPayments.Grant.continue/2` omits the HTTP
+  body separately. An empty struct exports as an empty JSON object.
 
   Inspection omits reference and extension values. Explicit map/JSON exports
   include them. This codec does not generate references, verify callback hashes,

@@ -140,8 +140,45 @@ valid initial response; nested errors retain safe field paths. Inspecting the
 response hides tokens, callback values, subject identifiers and card results;
 explicit map/JSON exports include them. Grant initiation does not open consent,
 verify callbacks, poll, continue/cancel grants or compare granted/requested access.
-Continuation and cancellation operations remain under development. Local signed
+Cancellation remains under development. Local signed
 wire checks pass; live signed-provider compatibility remains a release check.
+
+## Continuing a grant
+
+Pass the typed `continue` object from the latest response and the authenticated
+client holding the same signing key used for initiation:
+
+```elixir
+# Call after honoring grant.continue.wait and verifying any interaction callback.
+{:ok, continued} = OpenPayments.Grant.continue(client, grant.continue)
+
+# Supply a callback reference only after verifying the callback.
+{:ok, continued} =
+  OpenPayments.Grant.continue(client, grant.continue, %{
+    "interact_ref" => verified_interaction_reference
+  })
+```
+
+These illustrate alternative calls. The SDK sends one POST to the supplied
+continuation URI using `Authorization: GNAP ...` with the continuation credential,
+and covers authorization in the signature. It accepts a typed `Continuation`;
+an issued resource `AccessToken` cannot replace its typed continuation credential.
+The usual request URL and token68 header rules apply. No path is appended.
+
+Omitting the payload or passing nil sends no body. A string-keyed map or typed
+`GrantContinuationRequest` sends JSON; `%{}` or an empty request struct sends `{}`
+with content headers and a digest. Explicit-null `interact_ref` is invalid.
+Success requires HTTP 200 and returns a typed `GrantContinuationResponse` that
+may contain an access token, subject information, both, or neither. Errors use
+`operation: :continue_grant`, with safe nested paths and the existing error kinds.
+
+The caller must honor the server's `wait` interval before calling. The SDK does
+not record receipt times, enforce the delay, sleep or poll. Callers also verify
+callbacks before submitting their references; the callback helper remains under
+development. Use the returned `continued.continue` for a subsequent call, including
+any changed URI or credential. Tokens remain per-call data when sharing a client
+between processes. Redirects and automatic retries are disabled, including after
+transport failures. Live signed-provider compatibility remains a release check.
 
 ## Grant client identities
 
@@ -211,7 +248,8 @@ Both types provide `from_map/1`, `validate/1`, `to_map/1` and JSON encoding.
 Inspection and validation errors omit nonce values; explicit protocol exports
 include them. Data validation checks nonce strings without assessing randomness.
 The types do not generate nonces, open consent pages, verify callback hashes or
-continue grants. Those operations remain under development.
+continue grants. Use `Grant.continue/2,3` for continuation; callback verification
+remains under development.
 
 ## Grant access permissions
 
@@ -409,8 +447,7 @@ extensions are preserved at both object levels.
 Both types support `validate/1`, `to_map/1` and JSON encoding. Inspection hides
 credentials, continuation URLs and extensions; explicit exports include them.
 These codecs perform no waiting, polling or network requests. Continuation timing
-and outgoing URL/header policy belong to continuation operations, which remain
-under development.
+and outgoing URL/header policy apply when using `Grant.continue/2,3`.
 
 ## Grant interaction response data
 
@@ -475,7 +512,7 @@ Additional JSON fields are preserved in `extensions`. For this endpoint,
 response's interaction branch rules. `validate/1` revalidates every recognized
 typed child and extension data. `to_map/1` and JSON encoding include credentials,
 subject identifiers and any card results; inspection hides payload values, and
-errors retain safe nested field paths. The continuation operation remains under development.
+errors retain safe nested field paths. Use `Grant.continue/2,3` for continuation.
 
 ## Grant continuation request data
 
@@ -488,12 +525,12 @@ imposed. Other JSON fields are retained in `extensions`, including camel-case
 The shared schema permits an empty object, which this codec accepts. Node's
 TypeScript body type requires the reference when a body is supplied. An empty
 Elixir struct exports as `{}`; `from_map(nil)` is invalid. Omitting an HTTP body
-is a separate choice for the forthcoming continuation operation.
+is a separate choice supported by `Grant.continue/2,3`.
 
 `validate/1` revalidates modified structs. `to_map/1` and JSON encoding export
 the reference and extension values; inspection hides them and errors retain safe
 field names. This codec does not verify a callback hash, generate a reference,
-wait, poll or send a request. The continuation operation remains under development.
+wait, poll or send a request. Use `Grant.continue/2,3` for continuation.
 
 ## Public incoming payments
 
