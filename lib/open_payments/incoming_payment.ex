@@ -412,13 +412,17 @@ defmodule OpenPayments.IncomingPayment do
          incoming_amount: incoming,
          received_amount: received
        }) do
-    if incoming.asset_code == received.asset_code and incoming.asset_scale == received.asset_scale,
-      do: :ok,
-      else:
-        invalid_payment(
-          :incoming_amount,
-          "must use the same asset code and scale as received_amount"
-        )
+    incoming_asset = {incoming.asset_code, incoming.asset_scale}
+    received_asset = {received.asset_code, received.asset_scale}
+
+    if incoming_asset == received_asset do
+      :ok
+    else
+      invalid_payment(
+        :incoming_amount,
+        "must use the same asset code and scale as received_amount"
+      )
+    end
   end
 
   defp invalid_payment(field, message),

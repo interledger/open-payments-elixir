@@ -157,8 +157,12 @@ defmodule OpenPayments.Types.CardAuthorizationTest do
   test "revalidates manual mutations and hides all payload fields in inspection and errors" do
     {:ok, card} = CardAuthorization.from_map(@with_pin)
 
-    for value <- [@card["tlvData"], @card["requestId"], @with_pin["pinBlock"]] ++ Map.values(@pwk),
-        do: refute(inspect(card) =~ value)
+    payload_values =
+      [@card["tlvData"], @card["requestId"], @with_pin["pinBlock"]] ++ Map.values(@pwk)
+
+    for value <- payload_values do
+      refute inspect(card) =~ value
+    end
 
     assert CardAuthorization.to_map(card) == @with_pin
 
