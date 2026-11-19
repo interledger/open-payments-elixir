@@ -7,6 +7,45 @@ The package is under development and has not been published.
 Its package/application name is `open_payments_elixir`; Elixir modules use the
 `OpenPayments` namespace.
 
+## Installation
+
+Until a Hex release is available, add the Git dependency to your application's
+`mix.exs`:
+
+```elixir
+defp deps do
+  [
+    {:open_payments_elixir, github: "interledger/open-payments-elixir"}
+  ]
+end
+```
+
+Mix records the selected Git revision in your application's `mix.lock`; commit
+that lockfile with the application. Add a `ref` option if you need to select a
+specific reviewed commit.
+
+For development alongside a local SDK checkout, use this dependency instead:
+
+```elixir
+{:open_payments_elixir, path: "../open-payments-elixir"}
+```
+
+The path is relative to your application's project directory. It uses the local
+working tree, including uncommitted SDK changes.
+
+Install dependencies and open your application shell:
+
+```sh
+mix deps.get
+iex -S mix
+```
+
+The SDK and its runtime dependencies start with your application. Clients are
+immutable configuration structs and do not need entries in your supervision tree.
+Specifications are bundled; no Git submodule setup is required. Use the public
+discovery example below as a quick start with your own wallet address or payment
+pointer. Public discovery needs no private key or access token.
+
 ## Public wallet discovery
 
 Create a public client and look up a wallet using its URL or payment pointer:
