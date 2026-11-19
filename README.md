@@ -2321,15 +2321,57 @@ an HTTP request or send one.
 
 ## Development
 
+From the SDK repository, install the locked dependencies and run the CI checks:
+
 ```sh
-mix deps.get
+mix deps.get --check-locked
 mix check
+mix test --cover
+mix docs --warnings-as-errors
+elixir scripts/check_package.exs
 mix dialyzer
 ```
+
+`mix check` checks formatting, compilation with warnings as errors, strict Credo
+and the default test suite. The remaining commands measure coverage, build strict
+API docs, exercise the package in an isolated consumer and run static analysis.
+CI repeats these checks on the supported Elixir/OTP pairs. Generated API docs are
+written to `doc/index.html`; the package-consumer check is described below.
 
 After dependencies are installed, `mix test` runs without internet access,
 credentials, a database, or an external payment server. External integration tests
 are excluded by default.
+
+## Contributing
+
+Keep changes focused and the SDK usable by any conforming provider. For protocol
+changes, identify the relevant [Open Payments documentation](https://openpayments.dev/)
+and bundled specification revision, update affected types/operations and add
+regression coverage for changed behavior. Record deliberate differences from the
+specification or reviewed Node SDK in the operation documentation. Updating bundled
+schemas alone does not update the implementation; see [specification maintenance](#protocol-baseline).
+
+Tests live under `test/open_payments/`, with protocol data tests in `types/` and
+shared fixtures under `test/support/` and `test/fixtures/`. Use controlled Req
+adapters for response cases and the local HTTP server for transmitted bytes,
+headers and signatures. Cover relevant success, invalid input, malformed response
+and failure paths. Keep new default tests independent of live providers; opt-in
+integration tests use `:integration`. For a focused iteration, for example:
+
+```sh
+mix test test/open_payments/incoming_payment_creation_test.exs
+```
+
+Use published vectors or generated test keys for fixtures. Bug reports should
+include the SDK/specification revision, Elixir/OTP versions, expected behavior
+and a small reproduction with credentials and private payloads removed.
+
+Update public docs and the changelog when behavior changes. A pull request should
+explain the problem, resulting behavior, protocol references and checks performed.
+Run the relevant checks during development and the full sequence above before
+submitting a code change; documentation-only changes should build with
+`mix docs --warnings-as-errors`. Live interoperability results should name the
+operations actually exercised and remain separate from offline simulator results.
 
 ## Testnet interoperability checks
 

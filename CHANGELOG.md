@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add contributor guidance for protocol changes, offline tests and the CI checks.
 - Add a staged quote-based payment example with explicit grant state, callback
   verification, submission decisions, recurring-grant/token expiry and optional cleanup.
 - Link README operation and data sections to the official Open Payments documentation.
