@@ -1,13 +1,16 @@
 # Open Payments Elixir
 
-An Elixir client for the Open Payments wallet address, authorization, and resource
-server APIs. Supports Elixir 1.17 and later on compatible Erlang/OTP versions.
+An Elixir client for the [Open Payments](https://openpayments.dev/) wallet address,
+authorization, and resource server APIs. Supports Elixir 1.17 and later on
+compatible Erlang/OTP versions.
 
 The package is under development and has not been published.
 Its package/application name is `open_payments_elixir`; Elixir modules use the
 `OpenPayments` namespace.
 
 ## Installation
+
+For provider setup, see [Open Payments: before you begin](https://openpayments.dev/sdk/before-you-begin/).
 
 Until a Hex release is available, add the Git dependency to your application's
 `mix.exs`:
@@ -47,6 +50,9 @@ discovery example below as a quick start with your own wallet address or payment
 pointer. Public discovery needs no private key or access token.
 
 ## Public wallet discovery
+
+Open Payments guides: [wallet information](https://openpayments.dev/sdk/wallet-get-info/) and
+[wallet signing keys](https://openpayments.dev/sdk/wallet-get-keys/).
 
 Create a public client and look up a wallet using its URL or payment pointer:
 
@@ -107,6 +113,9 @@ indexed validation paths such as `keys[1].d` for a rejected private key field.
 
 ## Handling results and errors
 
+The [Open Payments API reference](https://openpayments.dev/apis/) describes server responses;
+the result tuples and error kinds below are the Elixir SDK interface.
+
 Data-returning operations return `{:ok, result}`. Acknowledgements such as grant
 cancellation and token revocation return `:ok`. Failures return
 `{:error, %OpenPayments.Error{}}`; handle these tuples at the application boundary.
@@ -149,6 +158,9 @@ deciding whether another mutation is appropriate.
 
 ## Application responsibilities
 
+Protocol context: [authorization](https://openpayments.dev/concepts/auth/) and
+the [Open Payments flow](https://openpayments.dev/concepts/op-flow/).
+
 Clients hold immutable configuration; keys and tokens are not persisted by the
 SDK. Keep workflow state in your application and pass credentials per operation.
 
@@ -166,6 +178,8 @@ The SDK performs explicit protocol calls; it does not schedule consent, token
 refresh, retries or pagination for the application.
 
 ## Authenticated client configuration
+
+Protocol context: [client keys and registration](https://openpayments.dev/identity/client-keys/).
 
 Configure a wallet identity and an Ed25519 key for authenticated operations:
 
@@ -205,7 +219,227 @@ Node's public-GET behavior. Grant operations, `OpenPayments.Token.rotate/2` and
 `OpenPayments.OutgoingPayment.get_grant_spent_amounts/3` reads the current token's
 grant spent amounts through signed dispatch.
 
+## Staged payment example
+
+Related protocol guides: [payment flow](https://openpayments.dev/concepts/op-flow/) and
+[accepting a one-time payment](https://openpayments.dev/guides/accept-otp-online-purchase/).
+
+This quote-based example connects the operations below. Supply an authenticated
+`client`, the two wallet addresses and your application's `callback_uri`.
+The client's registered key must be authorized for the requested grants.
+Each block is a separate application stage: persist successful responses before
+the next mutation, handle error tuples, and reconcile uncertain outcomes rather
+than restarting the sequence. Match operators keep the example compact.
+
+### Discover accounts and prepare the incoming payment
+
+```elixir
+alias OpenPayments.{Grant, IncomingPayment, Interaction, OutgoingPayment, Quote, Token, WalletAddress}
+alias OpenPayments.Types.AccessToken
+
+{:ok, sender} = WalletAddress.get(client, sender_wallet_address)
+{:ok, receiver} = WalletAddress.get(client, receiver_wallet_address)
+
+receive_amount = %{
+  "value" => "1000",
+  "assetCode" => receiver.asset_code,
+  "assetScale" => receiver.asset_scale
+}
+
+{:ok, receiver_grant} =
+  Grant.request(client, receiver.auth_server, %{
+    "access_token" => %{
+      "access" => [
+        %{
+          "type" => "incoming-payment",
+          "actions" => ["create", "read", "complete"],
+          "identifier" => receiver.id
+        }
+      ]
+    }
+  })
+```
+
+The amount is in the receiver's smallest asset units; choose the value for your
+application. If the receiver grant requires interaction, complete that workflow
+before proceeding and use its latest response. The next block requires an issued
+token, so a pending grant cannot accidentally reach payment creation.
+
+```elixir
+%AccessToken{} = receiver_token = receiver_grant.access_token
+
+{:ok, incoming} =
+  IncomingPayment.create(
+    client,
+    receiver.resource_server,
+    %{"walletAddress" => receiver.id, "incomingAmount" => receive_amount},
+    access_token: receiver_token
+  )
+```
+
+Keep `incoming.id`, `receiver_token` and the latest receiver continuation data.
+The incoming payment identifies the receiver for the quote and outgoing payment.
+
+### Request sender permission
+
+```elixir
+client_nonce = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+grant_endpoint = sender.auth_server
+
+{:ok, sender_grant} =
+  Grant.request(client, grant_endpoint, %{
+    "access_token" => %{
+      "access" => [
+        %{"type" => "quote", "actions" => ["create"]},
+        %{
+          "type" => "outgoing-payment",
+          "actions" => ["create", "read"],
+          "identifier" => sender.id,
+          "limits" => %{"receiver" => incoming.id, "receiveAmount" => receive_amount}
+        }
+      ]
+    },
+    "interact" => %{
+      "start" => ["redirect"],
+      "finish" => %{"method" => "redirect", "uri" => callback_uri, "nonce" => client_nonce}
+    }
+  })
+```
+
+Persist the grant, client nonce, initial endpoint and receipt time in the
+correlated application session. Preserve the effective endpoint spelling used
+for initiation, accounting for the URL preparation described in
+[callback verification](#verifying-an-interaction-callback-hash).
+If a token is issued immediately, skip the callback stage. Otherwise direct the
+user to `sender_grant.interact.redirect` and retain its `finish` server nonce.
+
+### Resume after a verified callback
+
+Load the stored session first. Your application must check session correlation,
+expiry and replay, and honor the latest continuation's `wait` before this call.
+`callback_hash` and `callback_reference` below are the once-decoded callback
+parameters. Do not derive stored nonces or the initial endpoint from the callback.
+
+```elixir
+{:ok, sender_grant} =
+  with :ok <-
+         Interaction.verify_hash(callback_hash,
+           client_nonce: client_nonce,
+           server_nonce: sender_grant.interact.finish,
+           interact_ref: callback_reference,
+           grant_endpoint: grant_endpoint
+         ) do
+    Grant.continue(client, sender_grant.continue, %{"interact_ref" => callback_reference})
+  end
+```
+
+A hash failure prevents continuation. Store the returned continuation data;
+it can replace both the URI and credential. A valid continuation response can
+still lack an access token. In that case pause, honor its new `wait` and continue
+the existing grant when appropriate; do not resubmit an already consumed callback
+reference or recreate the grant automatically.
+
+### Create a quote and submit once
+
+Once the latest sender response contains an issued token:
+
+```elixir
+%AccessToken{} = sender_token = sender_grant.access_token
+
+{:ok, quote} =
+  Quote.create(
+    client,
+    sender.resource_server,
+    %{"walletAddress" => sender.id, "receiver" => incoming.id, "method" => "ilp"},
+    access_token: sender_token
+  )
+```
+
+Persist and review the quote's debit/receive amounts before approving submission.
+Once the application has approved that quote, send one creation request:
+
+```elixir
+{:ok, outgoing} =
+  OutgoingPayment.create(
+    client,
+    sender.resource_server,
+    %{"walletAddress" => sender.id, "quoteId" => quote.id},
+    access_token: sender_token
+  )
+```
+
+The server enforces the granted limit. A successful outgoing creation is not proof
+of completed settlement.
+Store `outgoing.id` and fetch progress explicitly when your workflow needs it:
+
+```elixir
+{:ok, current} = OutgoingPayment.get(client, outgoing.id, access_token: sender_token)
+{:ok, receipt} = IncomingPayment.get(client, incoming.id, access_token: receiver_token)
+```
+
+### Complete the workflow and retire credentials
+
+After your application decides the incoming payment should accept no more funds,
+complete it. Completion can accept a partial receipt; it is not an instruction
+to transfer the outstanding balance:
+
+```elixir
+{:ok, completed} = IncomingPayment.complete(client, incoming.id, access_token: receiver_token)
+```
+
+You can let access expire naturally rather than explicitly retiring credentials
+after every payment. The token's optional `expires_in` (`sender_token.expires_in`
+or `receiver_token.expires_in`) gives its lifetime in seconds. Record its timing
+when issued/received and stop using it for resource requests once it expires.
+The [Open Payments rotation guide](https://openpayments.dev/sdk/token-rotate/)
+describes a 10-minute default, but the provider chooses the lifetime: use returned
+metadata and provider policy rather than hardcoding that duration. An absent
+`expires_in` does not establish unlimited validity. The SDK preserves this field;
+your application owns expiry tracking and rotation scheduling.
+
+Token expiry naturally ends that token's resource access without a revocation
+call. It does **not** necessarily end the grant: a valid grant can outlive its
+tokens and allow rotation, including after a token expires. Once the grant itself
+expires, its tokens must no longer be rotatable. See the
+[authorization-server lifecycle](https://openpayments.dev/implement/auth-server/#token-rotation-and-revocation).
+Incoming-payment completion and expiry are separate from these authorization
+lifetimes.
+
+For recurring payments, the grant can remain valid across its authorized billing
+periods while each access token still has its own expiry. Recurrence does not
+make a token non-expiring, and a new billing period does not revive an expired
+token. Rotate it when needed and persist the replacement; the existing valid
+grant can authorize later installments without requesting fresh consent each
+period. Keep the grant for those future payments rather than running the optional
+cancellation step after each installment. The recurring schedule and provider
+policy determine grant validity independently of token lifetime. See the
+[recurring-payments guide](https://openpayments.dev/guides/recurring-subscription-incoming-amount/).
+
+For explicit early cleanup, revoke tokens and cancel grants when no further work
+requires them. These calls are optional workflow decisions, not a mandatory final
+step after every payment:
+
+```elixir
+:ok = Token.revoke(client, sender_token)
+:ok = Token.revoke(client, receiver_token)
+:ok = Grant.cancel(client, sender_grant.continue)
+:ok = Grant.cancel(client, receiver_grant.continue)
+```
+
+Revocation invalidates the selected token; [grant cancellation](https://openpayments.dev/sdk/grant-revoke/)
+finalizes the grant request so it cannot be updated further. Each cleanup call
+has its own outcome. If you rotate a token during the workflow, persist and use
+`rotated.access_token` for later reads, payments and revocation. A direct outgoing-payment creation is an
+alternative to the quote form above; see [creating an outgoing payment](#creating-an-outgoing-payment).
+This example is application orchestration, not an automatic SDK workflow or an
+additional live-provider verification result.
+
 ## Requesting a grant
+
+Protocol context: [grant negotiation](https://openpayments.dev/identity/grants/),
+[incoming-payment grants](https://openpayments.dev/sdk/grant-create-incoming/),
+[quote grants](https://openpayments.dev/sdk/grant-create-quote/) and
+[outgoing-payment grants](https://openpayments.dev/sdk/grant-create-outgoing/).
 
 Use an authenticated client and the complete authorization-server URL discovered
 from the wallet:
@@ -250,6 +484,8 @@ Local signed wire checks pass; live signed-provider compatibility remains a rele
 
 ## Continuing a grant
 
+Open Payments guide: [continue a grant request](https://openpayments.dev/sdk/grant-continue/).
+
 Pass the typed `continue` object from the latest response and the authenticated
 client holding the same signing key used for initiation:
 
@@ -287,6 +523,8 @@ transport failures. Live signed-provider compatibility remains a release check.
 
 ## Cancelling a grant
 
+Open Payments guide: [cancel a grant request](https://openpayments.dev/sdk/grant-revoke/).
+
 Use the typed `continue` object from the latest response with the authenticated
 client holding the same signing key used for initiation:
 
@@ -312,6 +550,8 @@ Use `Token.revoke/2` for resource-token revocation. Live signed-provider checks
 remain pending.
 
 ## Rotating an access token
+
+Open Payments guide: [rotate an access token](https://openpayments.dev/sdk/token-rotate/).
 
 Pass an issued `OpenPayments.Types.AccessToken` and the authenticated client
 holding its bound signing key:
@@ -349,6 +589,8 @@ fields are preserved at the wrapper level; the issued token itself keeps its
 strict schema. Live signed-provider verification remains pending.
 
 ## Revoking an access token
+
+Open Payments guide: [revoke an access token](https://openpayments.dev/sdk/token-revoke/).
 
 Pass the latest issued token and the authenticated client holding its bound
 signing key:
@@ -430,6 +672,8 @@ grant automatically. Hash mismatch must prevent submission of the reference.
 
 ## Grant client identities
 
+Protocol context: [wallet and directed client identities](https://openpayments.dev/identity/client-keys/).
+
 `OpenPayments.Types.GrantClient.from_value/1` decodes a grant's client identity
 from a `walletAddress` object, a public `jwk` object, or the deprecated wallet URI
 string. Object forms support a typed optional `ClientDisplay`. Exactly one
@@ -469,6 +713,9 @@ Display metadata does not change client-constructor options.
 
 ## Grant interaction requests
 
+Protocol context: [interactive authorization](https://openpayments.dev/concepts/auth/) and
+[continuation after interaction](https://openpayments.dev/sdk/grant-continue/).
+
 `OpenPayments.Types.InteractionRequest` describes the grant request's `interact`
 field, with a required `start` array and an optional typed `InteractionFinish`
 callback. For example, generate a fresh nonce for each grant request:
@@ -500,6 +747,9 @@ continue grants. Use `Interaction.verify_hash/2` for callback-hash verification
 and `Grant.continue/2,3` for continuation.
 
 ## Grant access permissions
+
+Protocol context: [grant types and access rights](https://openpayments.dev/concepts/auth/);
+for intervals and limits, see [recurring remittances](https://openpayments.dev/guides/recurring-remittance-fixed-receive/).
 
 `OpenPayments.Types.AccessIncoming` describes incoming-payment permissions:
 
@@ -596,6 +846,8 @@ these payloads for use in `Grant.request/3`.
 
 ## Grant subject information
 
+Open Payments guide: [verify wallet-address ownership](https://openpayments.dev/guides/verify-wallet-address-ownership/).
+
 `OpenPayments.Types.Subject` contains exactly one typed `SubjectIdentifier` in its
 required `sub_ids` array:
 
@@ -652,6 +904,9 @@ perform no signing-key/identity match and do not verify callbacks.
 `Grant.request/3` performs grant initiation with signing and directed-key matching.
 
 ## Issued access-token data
+
+Protocol context: [grants and access tokens](https://openpayments.dev/implement/auth-server/#grants-and-access-tokens) and
+[token expiry/rotation](https://openpayments.dev/sdk/token-rotate/).
 
 `OpenPayments.Types.AccessToken.from_map/1` decodes an issued `access_token` object
 from a grant or continuation response. Required fields are the opaque string
@@ -783,6 +1038,8 @@ wait, poll or send a request. Use `Grant.continue/2,3` for continuation.
 
 ## Public incoming payments
 
+Open Payments guide: [get an incoming payment](https://openpayments.dev/sdk/incoming-get/).
+
 Read the public state of an incoming payment using its complete resource URL:
 
 ```elixir
@@ -829,6 +1086,8 @@ this current schema; `IncomingPayment.get/3` reads authenticated details separat
 
 ## Authenticated incoming-payment reads
 
+Open Payments guide: [get an incoming payment](https://openpayments.dev/sdk/incoming-get/).
+
 Read the complete resource URL with an authenticated client and a per-call token:
 
 ```elixir
@@ -874,6 +1133,8 @@ exports include them. Listing uses `IncomingPayment.list/4` below.
 Live signed-provider testing remains pending.
 
 ## Creating incoming payments
+
+Open Payments guide: [create an incoming payment](https://openpayments.dev/sdk/incoming-create/).
 
 Use the wallet's discovered resource-server base URL and an authenticated client
 with an access token authorized to create incoming payments:
@@ -929,6 +1190,8 @@ testing remains pending.
 
 ## Completing incoming payments
 
+Open Payments guide: [complete an incoming payment](https://openpayments.dev/sdk/incoming-complete/).
+
 Mark an incoming payment complete with an authenticated client and a token
 authorized to complete it:
 
@@ -978,6 +1241,8 @@ the result. Local tests cover create → complete → read with fresh state. Liv
 signed-provider testing remains pending.
 
 ## Listing incoming payments
+
+Open Payments guide: [list incoming payments](https://openpayments.dev/sdk/incoming-list/).
 
 Fetch one page with the discovered resource-server base URL, the wallet ID to
 filter by, and an authenticated client/token authorized to list its payments:
@@ -1036,6 +1301,8 @@ inspection omits the page payload. Live signed-provider testing remains pending.
 
 ## Reading quotes
 
+Open Payments guide: [get a quote](https://openpayments.dev/sdk/quote-get/).
+
 Read a quote using an authenticated client and an access token authorized to
 read that resource:
 
@@ -1075,6 +1342,8 @@ include them. Creation uses `Quote.create/4` below. Live signed-provider testing
 remains pending.
 
 ## Creating quotes
+
+Open Payments guide: [create a quote](https://openpayments.dev/sdk/quote-create/).
 
 Create a quote using the sender wallet's resource-server base URL and an
 authenticated client/token authorized to create quotes:
@@ -1128,6 +1397,8 @@ signed-provider testing remains pending.
 
 ## Reading an outgoing payment
 
+Open Payments guide: [get an outgoing payment](https://openpayments.dev/sdk/outgoing-get/).
+
 Use the authenticated client, the complete resource URL and a per-call token:
 
 ```elixir
@@ -1174,6 +1445,8 @@ remains pending. Use `OutgoingPayment.get_grant_spent_amounts/3` below for
 standalone grant spending.
 
 ## Creating an outgoing payment
+
+Open Payments guide: [create an outgoing payment](https://openpayments.dev/sdk/outgoing-create/).
 
 Use either a quote-based or direct incoming-payment request with an authenticated
 client and a per-call token:
@@ -1230,6 +1503,8 @@ decide how to reconcile that outcome before another creation attempt. Use
 the separate detailed type. Live signed-provider testing remains pending.
 
 ## Listing outgoing payments
+
+Open Payments guide: [list outgoing payments](https://openpayments.dev/sdk/outgoing-list/).
 
 Use the authenticated client, resource-server base, wallet filter and per-call
 token. Pagination is optional and accepts either a typed struct or protocol map:
@@ -1430,6 +1705,8 @@ detailed type.
 
 ## Reading outgoing-grant spent amounts
 
+Open Payments guide: [read spending for the current grant](https://openpayments.dev/sdk/outgoing-grant-spent-amounts/).
+
 Use the authenticated client, resource-server base and current per-call token:
 
 ```elixir
@@ -1601,6 +1878,9 @@ wallet, receiver and amount data. Errors retain safe paths such as
 no HTTP requests. Use `Quote.create/4` to create a quote and `Quote.get/3` to read it.
 
 ## Pagination query arguments
+
+Protocol examples: [incoming-payment pagination](https://openpayments.dev/sdk/incoming-list/) and
+[outgoing-payment pagination](https://openpayments.dev/sdk/outgoing-list/).
 
 `OpenPayments.Types.Pagination` models the optional query arguments shared by
 payment-list operations:
@@ -1853,6 +2133,8 @@ makes no requests. Pass the payload to `IncomingPayment.create/4` to create a pa
 
 ## ILP payment methods
 
+Protocol context: [supported payment methods](https://openpayments.dev/concepts/payments/).
+
 `OpenPayments.Types.ILPPaymentMethod.from_map/1` decodes an incoming payment's
 `{"type":"ilp","ilpAddress":...,"sharedSecret":...}` method into a struct with
 `type`, `ilp_address` and `shared_secret` fields. It validates the shared schema's
@@ -1867,6 +2149,8 @@ after manually constructing or modifying a struct. `IncomingPayment.get/3` and
 without methods, as do items in incoming-payment list results.
 
 ## Amounts
+
+Protocol context: [Open Payments amounts and asset scales](https://openpayments.dev/concepts/amounts/).
 
 Amounts retain integer values as decimal strings, with explicit asset codes and
 scales:
@@ -1883,6 +2167,8 @@ field names. Invalid inputs return `{:error, %OpenPayments.Error{}}` with
 field-specific validation issues.
 
 ## Wallet address data
+
+Protocol context: [wallet addresses](https://openpayments.dev/concepts/wallet-addresses/).
 
 Decode wallet information into a typed struct:
 
@@ -1947,6 +2233,8 @@ supports Open Payments. Wallet response fields remain unchanged by this helper.
 
 ## Public keys
 
+Protocol context: [public key registries](https://openpayments.dev/identity/client-keys/).
+
 Decode a wallet's public key set into nested structs:
 
 ```elixir
@@ -1976,6 +2264,8 @@ material and exclude it from public export. Cryptographic validation of decoded
 key bytes and key selection will be provided by the signing utilities.
 
 ## Signing keys
+
+Protocol context: [client key registration and proof](https://openpayments.dev/identity/client-keys/).
 
 Generate a new Ed25519 key explicitly and export its public key for registration:
 
@@ -2185,6 +2475,11 @@ The source of truth is the shared
 The bundled `priv/specifications/SOURCE.json` records the exact upstream commit,
 version, and checksums for all three API documents.
 
+The Open Payments guides linked throughout this README explain protocol concepts
+and cross-language usage. Use the bundled revision for this SDK's exact schema
+contract; online guides and the [API reference](https://openpayments.dev/apis/)
+can track a different revision.
+
 To adopt an upstream revision:
 
 ```sh
@@ -2201,6 +2496,8 @@ The current operation inventory is available through
 `OpenPayments.Specification.document/1`.
 
 ## Signing dependency
+
+Protocol context: [Open Payments HTTP message signatures](https://openpayments.dev/identity/http-signatures/).
 
 HTTP signature framing uses `message_signatures`, with Ed25519 provided by OTP
 crypto. A contract test reproduces the published RFC 9421 Appendix B.2.6 signature.

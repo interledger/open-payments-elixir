@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a staged quote-based payment example with explicit grant state, callback
+  verification, submission decisions, recurring-grant/token expiry and optional cleanup.
+- Link README operation and data sections to the official Open Payments documentation.
 - Document result/error handling, application workflow responsibilities and the
   bundled specification-version helper.
 - Add Git and local-path installation instructions and application startup guidance.
