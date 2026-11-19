@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document result/error handling, application workflow responsibilities and the
+  bundled specification-version helper.
 - Add Git and local-path installation instructions and application startup guidance.
 - Document supported runtimes, specification coverage and Node compatibility in the README.
 - Add signed outgoing-grant spent-amount reads with per-call tokens, required

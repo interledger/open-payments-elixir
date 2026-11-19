@@ -105,6 +105,66 @@ key selection or signature verification. Empty key sets and duplicate key IDs
 follow the shared schema. Errors use `operation: :get_wallet_address_keys`, with
 indexed validation paths such as `keys[1].d` for a rejected private key field.
 
+## Handling results and errors
+
+Data-returning operations return `{:ok, result}`. Acknowledgements such as grant
+cancellation and token revocation return `:ok`. Failures return
+`{:error, %OpenPayments.Error{}}`; handle these tuples at the application boundary.
+Given a client and an input `wallet_address`, for example:
+
+```elixir
+case OpenPayments.WalletAddress.get(client, wallet_address) do
+  {:ok, wallet} ->
+    {:ok, wallet}
+
+  {:error, %OpenPayments.Error{kind: :http, status: 404}} ->
+    {:error, :wallet_not_found}
+
+  {:error, %OpenPayments.Error{kind: kind, status: status, operation: operation}} ->
+    {:error, %{kind: kind, status: status, operation: operation}}
+end
+```
+
+| Error kind | Meaning |
+| --- | --- |
+| `:configuration` | Invalid client options or signing-key configuration |
+| `:validation` | Invalid operation input, URL, token or protocol data |
+| `:signing` | Request-signature preparation failed |
+| `:transport` | A connection or timeout failure prevented a complete response |
+| `:http` | The server returned an unsuccessful HTTP status |
+| `:decoding` | Unexpected success status, invalid JSON/schema data or failed response consistency checks |
+
+`operation` identifies the SDK operation; `status` is nil when no HTTP response
+is available. Validation issues identify fields without retaining rejected values.
+Server `code`, `description` and `details` can contain provider-supplied data.
+Choose fields deliberately when logging; the example retains only kind, status
+and operation. Explicit JSON exports of tokens, grants and payment data include
+their values even when their inspected representation hides sensitive fields.
+
+A timeout or invalid success response after a mutation can leave its outcome
+unknown: the server may already have created the payment, continued the grant or
+rotated the token. The SDK returns the error without automatically replaying the
+request. Use provider-supported reads or application reconciliation before
+deciding whether another mutation is appropriate.
+
+## Application responsibilities
+
+Clients hold immutable configuration; keys and tokens are not persisted by the
+SDK. Keep workflow state in your application and pass credentials per operation.
+
+| Workflow | Application responsibility |
+| --- | --- |
+| Grants and consent | Choose permissions, correlate sessions, store fresh client nonces and continuation state, honor `wait`, verify callbacks and prevent replay before continuing |
+| Credentials | Register public keys, protect private keys/tokens and persist the latest continuation and rotated access-token data |
+| Payments | Select accounts and amounts, arrange funding, reconcile uncertain outcomes and decide completion/settlement policy |
+| Recurring grants and pages | Schedule work, interpret provider-enforced intervals and explicitly request subsequent pages |
+
+Use client constructor options for custom headers, finite timeouts and a Req
+adapter for tests. SDK-owned signing/transport headers cannot be overridden.
+Arbitrary Req plugins and pre/post-signing hooks are not part of the public API.
+The SDK performs explicit protocol calls; it does not schedule consent, token
+refresh, retries or pagination for the application.
+
 ## Authenticated client configuration
 
 Configure a wallet identity and an Ed25519 key for authenticated operations:
