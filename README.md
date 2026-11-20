@@ -480,7 +480,7 @@ valid initial response; nested errors retain safe field paths. Inspecting the
 response hides tokens, callback values, subject identifiers and card results;
 explicit map/JSON exports include them. Grant initiation does not open consent,
 verify callbacks, poll, continue/cancel grants or compare granted/requested access.
-Local signed wire checks pass; live signed-provider compatibility remains a release check.
+Local signed wire checks and CLI-driven testnet grant initiation pass.
 
 ## Continuing a grant
 
@@ -519,7 +519,7 @@ callbacks with `Interaction.verify_hash/2` before submitting their references.
 Use the returned `continued.continue` for a subsequent call, including
 any changed URI or credential. Tokens remain per-call data when sharing a client
 between processes. Redirects and automatic retries are disabled, including after
-transport failures. Live signed-provider compatibility remains a release check.
+transport failures. CLI-driven testnet checks verify callback hashes and grant continuation.
 
 ## Cancelling a grant
 
@@ -1050,8 +1050,8 @@ Read the public state of an incoming payment using its complete resource URL:
     "https://wallet.example.com/tenant/incoming-payments/payment-1"
   )
 
-payment.completed
-payment.received_amount.value
+payment.auth_server
+payment.received_amount
 ```
 
 This unsigned GET sends no access token or signature and returns
@@ -1063,8 +1063,15 @@ cache results, follow redirects or retry requests. Errors identify
 `operation: :get_public_incoming_payment` and distinguish HTTP, decoding,
 validation, configuration and transport failures.
 
-`OpenPayments.Types.PublicIncomingPayment.from_map/1` validates the pinned
-`incoming-payment-without-access-token` response. Its required fields are `id`,
+`OpenPayments.Types.PublicIncomingPayment.from_map/1` accepts the minimal public
+shape used by the [Node SDK](https://github.com/interledger/open-payments-node/blob/8391a1c9e33ee157d918f753f7c06d7ce3e2fd80/packages/open-payments/src/openapi/generated/resource-server-types.ts):
+required `auth_server` with optional typed `received_amount`. Other payment fields
+remain nil, and exports omit absent fields. This compatibility shape is separate
+from the pinned specification's fuller response; the bundled specification is
+unchanged.
+
+If any detail field is present, the complete pinned
+`incoming-payment-without-access-token` response is required: `id`,
 `completed`, `received_amount`, `created_at`, `methods` and `auth_server`; amounts
 and ILP payment methods are typed structs. Optional `incoming_amount` and
 `expires_at` become nil when omitted. Explicit JSON nulls are rejected. Empty
@@ -1082,7 +1089,7 @@ not compare amounts, assets or expiration times, or authorize URI request target
 protocol fields, including ILP shared secrets. Inspection omits methods and
 extensions. Validation errors use paths such as `received_amount.value` and
 `methods[0].shared_secret`, without retaining rejected values. Public reads use
-this current schema; `IncomingPayment.get/3` reads authenticated details separately.
+either public shape; `IncomingPayment.get/3` reads authenticated details separately.
 
 ## Authenticated incoming-payment reads
 
@@ -2504,8 +2511,15 @@ document validation and URL-handling differences.
 
 Requests require HTTPS by default and have no automatic retries or redirects.
 The [signing profile](#signing-dependency) follows the reviewed Node implementation
-and differs from the final GNAP profile. Public testnet discovery has been verified;
-live signed requests, consent and funded payments remain unverified here.
+and differs from the final GNAP profile.
+
+On 2026-11-20, CLI-driven testnet checks exercised all 17 HTTP operations,
+including interactive consent and callback verification, all three quote creation
+variants, both outgoing creation forms, completed sender/receiver amounts,
+incoming completion, token rotation/revocation and grant cancellation. Previous,
+revoked and cancelled-grant tokens were rejected by the provider. These results
+cover the deployed testnet profile; they do not establish compatibility with every
+provider or optional card, subject, directed-identity and recurring-grant scenario.
 
 ## Protocol baseline
 

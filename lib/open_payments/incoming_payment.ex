@@ -3,7 +3,7 @@ defmodule OpenPayments.IncomingPayment do
   Incoming-payment operations on an Open Payments resource server.
 
   Public reads use an unsigned GET to a complete incoming-payment URL and validate
-  the current public response schema. Resource URLs are opaque: their paths and
+  the full pinned or minimal public response shape. Resource URLs are opaque: their paths and
   queries are not inferred from wallet addresses or provider-specific layouts.
   HTTPS is required unless HTTP was explicitly enabled on the client. Redirects
   and automatic retries are disabled.
@@ -211,6 +211,10 @@ defmodule OpenPayments.IncomingPayment do
   needed. Payment pointers identify wallets and are not resource URLs. Success
   returns a `PublicIncomingPayment` struct; errors carry the operation
   `:get_public_incoming_payment` and applicable status or validation paths.
+
+  Minimal public responses supply `auth_server` and optionally `received_amount`;
+  detail fields remain nil. A response containing any payment detail must satisfy
+  the full pinned schema. No missing fields are inferred from the request URL.
 
   This read does not complete or create a payment, connect to STREAM, select a
   payment method, or cache the response. Explicit JSON exports of returned methods

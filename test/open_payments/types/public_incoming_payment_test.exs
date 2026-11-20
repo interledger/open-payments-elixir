@@ -57,6 +57,83 @@ defmodule OpenPayments.Types.PublicIncomingPaymentTest do
     end
   end
 
+  test "round trips minimal public responses without inventing payment details" do
+    for wire <- [
+          %{"authServer" => @payment["authServer"]},
+          %{"authServer" => @payment["authServer"], "receivedAmount" => @amount},
+          %{
+            "authServer" => @payment["authServer"],
+            "receivedAmount" => @amount,
+            "custom" => %{"private" => "extension-sentinel"}
+          }
+        ] do
+      assert {:ok, payment} = PublicIncomingPayment.from_map(wire)
+      assert payment.id == nil
+      assert payment.completed == nil
+      assert payment.created_at == nil
+      assert payment.methods == nil
+      assert payment.incoming_amount == nil
+      assert payment.expires_at == nil
+      assert :ok = PublicIncomingPayment.validate(payment)
+      assert PublicIncomingPayment.to_map(payment) == wire
+      assert Jason.decode!(Jason.encode!(payment)) == wire
+      refute inspect(payment) =~ "extension-sentinel"
+    end
+  end
+
+  test "validates minimal authorization and optional received amount" do
+    assert :ok =
+             PublicIncomingPayment.validate(%PublicIncomingPayment{
+               auth_server: @payment["authServer"]
+             })
+
+    for data <- [%{}, %{"authServer" => nil}, %{"authServer" => "relative/path"}] do
+      assert {:error, %Error{validation_errors: [%{field: :auth_server}]}} =
+               PublicIncomingPayment.from_map(data)
+    end
+
+    for received <- [nil, false, [], %{"value" => "private-invalid"}] do
+      assert {:error, %Error{} = error} =
+               PublicIncomingPayment.from_map(%{
+                 "authServer" => @payment["authServer"],
+                 "receivedAmount" => received
+               })
+
+      refute inspect(error) =~ "private-invalid"
+    end
+
+    assert {:error, %Error{validation_errors: [%{field: :received_amount}]}} =
+             PublicIncomingPayment.validate(%PublicIncomingPayment{
+               auth_server: @payment["authServer"],
+               received_amount: @amount
+             })
+
+    assert {:error, %Error{validation_errors: [%{field: :extensions}]}} =
+             PublicIncomingPayment.validate(%PublicIncomingPayment{
+               auth_server: @payment["authServer"],
+               extensions: %{"methods" => []}
+             })
+  end
+
+  test "partial detailed responses cannot fall back to the minimal shape" do
+    for {field, value} <- [
+          {"id", @payment["id"]},
+          {"completed", false},
+          {"createdAt", @payment["createdAt"]},
+          {"methods", []},
+          {"incomingAmount", @amount},
+          {"expiresAt", "2026-11-20T12:00:00Z"}
+        ],
+        value <- [value, nil] do
+      assert {:error, %Error{kind: :validation}} =
+               PublicIncomingPayment.from_map(%{
+                 "authServer" => @payment["authServer"],
+                 "receivedAmount" => @amount,
+                 field => value
+               })
+    end
+  end
+
   test "requires base fields, auth server and methods without applying schema defaults" do
     for {wire_field, field} <- [
           {"id", :id},

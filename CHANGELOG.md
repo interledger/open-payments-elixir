@@ -19,6 +19,9 @@
 
 ### Protocol data and validation
 
+- Accept minimal public incoming-payment responses containing `authServer` and
+  optional `receivedAmount`, matching the Node SDK and deployed servers, while
+  retaining full validation for detailed responses.
 - Add typed snake_case Elixir structs with explicit protocol JSON field names,
   nested validation, omission/null distinctions and schema-permitted extensions.
 - Cover uint64 amount strings, asset scales, wallet/public keys, ILP methods,
@@ -55,8 +58,9 @@
 - Support Elixir 1.17+ on compatible OTP versions, with CI pairs 1.17/26,
   1.19/28 and 1.20/29. Verify the signing dependency with RFC 9421 and Node vectors.
 - The request-signing profile follows the reviewed sibling SDK; it does not
-  implement the complete final GNAP profile. Live public discovery is verified;
-  signed-provider, consent and funded-payment acceptance remain pending.
+  implement the complete final GNAP profile. CLI-driven testnet checks exercise
+  all 17 HTTP operations, interactive consent/callback verification, token and
+  grant lifecycles, and completed quote-based/direct payments.
 
 ### Tests and documentation
 

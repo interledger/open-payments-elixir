@@ -2,11 +2,13 @@ defmodule OpenPayments.Types.PublicIncomingPayment do
   @moduledoc """
   An incoming payment returned without an access token.
 
-  Follows the pinned `incoming-payment-without-access-token` schema, including
-  required base fields, authorization server and unique payment methods. Amounts
-  and ILP methods become typed structs. Optional `incomingAmount` and `expiresAt`
-  become nil when omitted; explicit nulls are invalid. Additional JSON fields are
-  preserved in `extensions`.
+  Accepts the pinned `incoming-payment-without-access-token` schema and the
+  minimal public shape used by the Node SDK and deployed servers: `authServer`
+  with optional `receivedAmount`. Minimal responses leave detail fields nil.
+  If any detail field is present, the complete pinned response is required,
+  including unique payment methods. Amounts and ILP methods become typed structs.
+  Omitted optional fields become nil; explicit nulls are invalid. Additional JSON
+  fields are preserved in `extensions`.
 
   URI fields and RFC 3339 timestamps remain strings with their original spelling,
   offsets and fractional precision. Timestamp validation checks calendar/clock
@@ -24,7 +26,7 @@ defmodule OpenPayments.Types.PublicIncomingPayment do
   alias OpenPayments.Types.{Amount, ILPPaymentMethod, Validation}
 
   @derive {Inspect, only: [:id, :completed, :created_at, :expires_at, :auth_server]}
-  @enforce_keys [:id, :completed, :received_amount, :created_at, :methods, :auth_server]
+  @enforce_keys [:auth_server]
   defstruct [
     :id,
     :completed,
@@ -38,22 +40,45 @@ defmodule OpenPayments.Types.PublicIncomingPayment do
   ]
 
   @wire_fields ~w(id completed receivedAmount createdAt methods authServer incomingAmount expiresAt)
+  @detail_fields ~w(id completed createdAt methods incomingAmount expiresAt)
 
   @type t :: %__MODULE__{
-          id: String.t(),
-          completed: boolean(),
-          received_amount: Amount.t(),
-          created_at: String.t(),
-          methods: [ILPPaymentMethod.t()],
+          id: String.t() | nil,
+          completed: boolean() | nil,
+          received_amount: Amount.t() | nil,
+          created_at: String.t() | nil,
+          methods: [ILPPaymentMethod.t()] | nil,
           auth_server: String.t(),
           incoming_amount: Amount.t() | nil,
           expires_at: String.t() | nil,
           extensions: %{optional(String.t()) => term()}
         }
 
-  @doc "Decodes and validates the current public incoming-payment JSON shape."
+  @doc "Decodes a full pinned response or minimal public authorization information."
   @spec from_map(map()) :: {:ok, t()} | {:error, Error.t()}
   def from_map(data) when is_map(data) and not is_struct(data) do
+    if Enum.any?(@detail_fields, &Map.has_key?(data, &1)),
+      do: from_full_map(data),
+      else: from_minimal_map(data)
+  end
+
+  def from_map(_data), do: invalid([issue(:public_incoming_payment, "must be a JSON object")])
+
+  @doc "Validates a full or minimal struct, treating nil optional fields as omitted."
+  @spec validate(t()) :: :ok | {:error, Error.t()}
+  def validate(%__MODULE__{} = payment) do
+    if minimal?(payment),
+      do: validate_minimal(payment),
+      else: validate_fields(payment, not is_nil(payment.expires_at))
+  end
+
+  @doc "Converts supplied protocol fields, including method secrets, without validating."
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = payment) do
+    if minimal?(payment), do: minimal_map(payment), else: full_map(payment)
+  end
+
+  defp from_full_map(data) do
     with {:ok, received} <- amount(data["receivedAmount"], :received_amount, &Amount.from_map/1),
          {:ok, incoming} <- incoming_amount(data),
          {:ok, methods} <- methods(data["methods"], &ILPPaymentMethod.from_map/1) do
@@ -76,16 +101,76 @@ defmodule OpenPayments.Types.PublicIncomingPayment do
     end
   end
 
-  def from_map(_data), do: invalid([issue(:public_incoming_payment, "must be a JSON object")])
+  defp from_minimal_map(data) do
+    received =
+      if Map.has_key?(data, "receivedAmount"),
+        do: amount(data["receivedAmount"], :received_amount, &Amount.from_map/1),
+        else: {:ok, nil}
 
-  @doc "Validates a struct, treating nil optional fields as omitted."
-  @spec validate(t()) :: :ok | {:error, Error.t()}
-  def validate(%__MODULE__{} = payment),
-    do: validate_fields(payment, not is_nil(payment.expires_at))
+    with {:ok, received} <- received do
+      payment = %__MODULE__{
+        auth_server: data["authServer"],
+        received_amount: received,
+        extensions: Map.drop(data, @wire_fields)
+      }
 
-  @doc "Converts to protocol fields, including method secrets, without validating."
-  @spec to_map(t()) :: map()
-  def to_map(%__MODULE__{} = payment) do
+      case validate_minimal(payment) do
+        :ok -> {:ok, payment}
+        {:error, error} -> {:error, error}
+      end
+    end
+  end
+
+  defp minimal?(payment),
+    do:
+      Enum.all?(
+        [:id, :completed, :created_at, :methods, :incoming_amount, :expires_at],
+        &is_nil(Map.fetch!(payment, &1))
+      )
+
+  defp validate_minimal(payment) do
+    errors =
+      if Validation.absolute_uri?(payment.auth_server),
+        do: [],
+        else: [issue(:auth_server, "must be an absolute URI")]
+
+    errors =
+      if Validation.extensions?(payment.extensions, @wire_fields),
+        do: errors,
+        else:
+          errors ++
+            [
+              issue(
+                :extensions,
+                "must be a JSON object with string keys and no reserved payment fields"
+              )
+            ]
+
+    errors =
+      if is_nil(payment.received_amount),
+        do: errors,
+        else:
+          errors ++
+            result_errors(amount(payment.received_amount, :received_amount, &validate_amount/1))
+
+    case errors do
+      [] -> :ok
+      errors -> invalid(errors)
+    end
+  end
+
+  defp minimal_map(payment) do
+    fields = %{"authServer" => payment.auth_server}
+
+    fields =
+      if is_nil(payment.received_amount),
+        do: fields,
+        else: Map.put(fields, "receivedAmount", Amount.to_map(payment.received_amount))
+
+    payment.extensions |> Map.drop(@wire_fields) |> Map.merge(fields)
+  end
+
+  defp full_map(payment) do
     fields = %{
       "id" => payment.id,
       "completed" => payment.completed,

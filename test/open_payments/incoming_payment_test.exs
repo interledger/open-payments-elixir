@@ -135,6 +135,25 @@ defmodule OpenPayments.IncomingPaymentTest do
     end
   end
 
+  test "accepts minimal public responses without inferring details from the request URL" do
+    {:ok, client} = Client.new_public(adapter: TransportAdapter)
+
+    for wire <- [
+          %{"authServer" => "https://auth.example.com"},
+          %{
+            "authServer" => "https://auth.example.com",
+            "receivedAmount" => %{"value" => "300", "assetCode" => "EUR", "assetScale" => 2}
+          }
+        ] do
+      respond(200, Jason.encode!(wire))
+
+      assert {:ok, %PublicIncomingPayment{id: nil, methods: nil} = payment} =
+               IncomingPayment.get_public(client, "https://wallet.example.com/resource")
+
+      assert PublicIncomingPayment.to_map(payment) == wire
+    end
+  end
+
   test "validates the public schema and returns safe nested error paths" do
     {:ok, client} = Client.new_public(adapter: TransportAdapter)
 
