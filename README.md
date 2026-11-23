@@ -4,23 +4,28 @@ An Elixir client for the [Open Payments](https://openpayments.dev/) wallet addre
 authorization, and resource server APIs. Supports Elixir 1.17 and later on
 compatible Erlang/OTP versions.
 
-The package is under development and has not been published.
-Its package/application name is `open_payments_elixir`; Elixir modules use the
+The package/application name is `open_payments_elixir`; Elixir modules use the
 `OpenPayments` namespace.
 
 ## Installation
 
 For provider setup, see [Open Payments: before you begin](https://openpayments.dev/sdk/before-you-begin/).
 
-Until a Hex release is available, add the Git dependency to your application's
-`mix.exs`:
+Add the Hex dependency to your application's `mix.exs`:
 
 ```elixir
 defp deps do
   [
-    {:open_payments_elixir, github: "interledger/open-payments-elixir"}
+    {:open_payments_elixir, "~> 1.0"}
   ]
 end
+```
+
+Before the first Hex publication, or to use a specific source revision, use the
+Git dependency instead:
+
+```elixir
+{:open_payments_elixir, github: "interledger/open-payments-elixir"}
 ```
 
 Mix records the selected Git revision in your application's `mix.lock`; commit

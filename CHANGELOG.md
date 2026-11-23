@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.0.0
+
+Initial release.
+
 ### Client operations
 
 - Add immutable public and authenticated clients with per-call credentials.

@@ -1,10 +1,12 @@
 defmodule OpenPayments.MixProject do
   use Mix.Project
 
+  @version "1.0.0"
+
   def project do
     [
       app: :open_payments_elixir,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -25,7 +27,11 @@ defmodule OpenPayments.MixProject do
       ],
       source_url: "https://github.com/interledger/open-payments-elixir",
       dialyzer: [plt_add_apps: [:mix]],
-      docs: [main: "readme", extras: ["README.md", "CHANGELOG.md"]]
+      docs: [
+        main: "readme",
+        extras: ["README.md", "CHANGELOG.md"],
+        source_ref: "v#{@version}"
+      ]
     ]
   end
 
